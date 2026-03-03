@@ -277,6 +277,24 @@
     50% { border-color: rgba(0,255,255,0.8); }
   }
 
+  .asset-label-3d {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(0, 255, 255, 0.35);
+    pointer-events: none;
+    white-space: nowrap;
+    text-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+  }
+
+  .price-axis-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: rgba(0, 255, 255, 0.35);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
   .time-label-3d {
     font-family: 'Share Tech Mono', monospace;
     font-size: 9px;
@@ -814,7 +832,7 @@ function initControls() {
   controls.maxDistance = 300;
   controls.maxPolarAngle = Math.PI / 2 - 0.05;
   controls.autoRotate = true;
-  controls.autoRotateSpeed = 0.3;
+  controls.autoRotateSpeed = 0.15;
   controls.enableZoom = true;
   controls.zoomSpeed = 0.8;
   controls.maxDistance = 180;
@@ -1005,7 +1023,7 @@ function updatePrice() {
 }
 
 // ─── Build 3D Grid ───
-function buildGrid(xMax, yMax, zMax) {
+function buildGrid(xMax, yMax, zMax, minPrice, priceRange) {
   // Clear old grid
   while (gridGroup.children.length) {
     const child = gridGroup.children[0];
@@ -1110,6 +1128,34 @@ function buildGrid(xMax, yMax, zMax) {
 
       const label = new CSS2DObject(div);
       label.position.set(lastI * CANDLE_SPACING, yBottom - 1.2, zMax + 1);
+      gridGroup.add(label);
+    }
+  }
+
+  // ─── Asset name on top edge of back wall ───
+  const assetDiv = document.createElement('div');
+  assetDiv.className = 'asset-label-3d';
+  assetDiv.textContent = 'BTC / USDT';
+  const assetLabel = new CSS2DObject(assetDiv);
+  assetLabel.position.set((xMin + xMax) / 2, yMax + 1.5, zMin);
+  gridGroup.add(assetLabel);
+
+  // ─── Price labels on Y axis (left wall) ───
+  if (minPrice !== undefined && priceRange) {
+    const PRICE_SCALE = yMax - 5; // matches the 40 used in buildCandles
+    for (let i = 0; i <= ySteps; i++) {
+      const y = yBottom + i * yStep;
+      // Map Y position back to real price
+      const normalizedY = (y / PRICE_SCALE);
+      const price = minPrice + normalizedY * priceRange;
+      if (price <= 0) continue;
+
+      const div = document.createElement('div');
+      div.className = 'price-axis-label';
+      div.textContent = '$' + price.toLocaleString('en-US', { maximumFractionDigits: 0 });
+
+      const label = new CSS2DObject(div);
+      label.position.set(xMin - 2, y, zMin);
       gridGroup.add(label);
     }
   }
@@ -1222,7 +1268,7 @@ function buildCandles() {
   const xMax = (candleData.length - 1) * CANDLE_SPACING + 2;
   const yMax = PRICE_SCALE + 5;
   const zMax = (VOLUME_SCALE / 2 + 2) * 3;
-  buildGrid(xMax, yMax, zMax);
+  buildGrid(xMax, yMax, zMax, minPrice, priceRange);
 
   // Center camera target biased toward last candle
   const cx = getCenterX();
