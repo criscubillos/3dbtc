@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D BTC Visualizer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  body {
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 60px;
+    background: linear-gradient(180deg, rgba(10,10,20,0.95) 0%, rgba(10,10,20,0.8) 100%);
+    border-bottom: 1px solid rgba(0,255,255,0.15);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 20px;
+    background: linear-gradient(90deg, #00ffff, #ff0088);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-right: 30px;
+    text-shadow: 0 0 20px rgba(0,255,255,0.3);
+    white-space: nowrap;
+  }
+
+  .price-ticker {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-right: 30px;
+  }
+
+  .price-ticker .symbol {
+    color: #f7931a;
+    font-weight: bold;
+    font-size: 14px;
+  }
+
+  .price-ticker .price {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: #00ff88;
+    text-shadow: 0 0 15px rgba(0,255,136,0.5);
+  }
+
+  .price-ticker .price.down {
+    color: #ff0044;
+    text-shadow: 0 0 15px rgba(255,0,68,0.5);
+  }
+
+  .price-ticker .change {
+    font-size: 13px;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .price-ticker .change.up {
+    color: #00ff88;
+    background: rgba(0,255,136,0.1);
+    border: 1px solid rgba(0,255,136,0.2);
+  }
+
+  .price-ticker .change.down {
+    color: #ff0044;
+    background: rgba(255,0,68,0.1);
+    border: 1px solid rgba(255,0,68,0.2);
+  }
+
+  .timeframe-selector {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    margin-right: 20px;
+  }
+
+  .timeframe-selector button {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(0,255,255,0.15);
+    color: #8899aa;
+    padding: 6px 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+
+  .timeframe-selector button:hover {
+    background: rgba(0,255,255,0.1);
+    color: #00ffff;
+    border-color: rgba(0,255,255,0.4);
+  }
+
+  .timeframe-selector button.active {
+    background: rgba(0,255,255,0.15);
+    color: #00ffff;
+    border-color: #00ffff;
+    box-shadow: 0 0 10px rgba(0,255,255,0.2);
+  }
+
+  #sidebar {
+    position: fixed;
+    top: 60px;
+    right: 0;
+    width: 200px;
+    bottom: 0;
+    background: linear-gradient(180deg, rgba(10,10,20,0.9) 0%, rgba(10,10,20,0.7) 100%);
+    border-left: 1px solid rgba(0,255,255,0.1);
+    z-index: 99;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 30px;
+    backdrop-filter: blur(10px);
+  }
+
+  .ad-placeholder {
+    width: 160px;
+    height: 600px;
+    border: 1px dashed rgba(0,255,255,0.15);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(0,255,255,0.2);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  #canvas-container {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 200px;
+    bottom: 0;
+  }
+
+  #canvas-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  #loading {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #0a0a0f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.5s;
+  }
+
+  #loading.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .loader-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    color: #00ffff;
+    text-shadow: 0 0 20px rgba(0,255,255,0.5);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .controls-hint {
+    position: fixed;
+    bottom: 15px;
+    left: 15px;
+    font-size: 11px;
+    color: rgba(0,255,255,0.3);
+    z-index: 100;
+    line-height: 1.6;
+  }
+
+  .price-label-3d {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    text-shadow: 0 0 8px currentColor;
+    line-height: 1;
+  }
+
+  .price-label-3d.last {
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(0, 255, 255, 0.5);
+    color: #00ffff;
+    animation: label-pulse 2s ease-in-out infinite;
+  }
+
+  .price-label-3d.last .label-price {
+    font-size: 14px;
+    margin-bottom: 3px;
+  }
+
+  .price-label-3d.last .label-vol {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    font-weight: 400;
+    color: rgba(0, 255, 255, 0.6);
+    text-shadow: none;
+  }
+
+  .price-label-3d.hover {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    font-size: 12px;
+  }
+
+  .price-label-3d .label-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 2px;
+  }
+
+  .price-label-3d .label-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .price-label-3d .label-key {
+    color: rgba(255,255,255,0.4);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    font-weight: 400;
+  }
+
+  .price-label-3d .label-val {
+    font-family: 'Orbitron', sans-serif;
+  }
+
+  .price-label-3d .label-val.green { color: #00ff88; }
+  .price-label-3d .label-val.red { color: #ff0044; }
+
+  .price-label-3d .label-vol {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: rgba(0, 255, 255, 0.7);
+  }
+
+  @keyframes label-pulse {
+    0%, 100% { border-color: rgba(0,255,255,0.3); }
+    50% { border-color: rgba(0,255,255,0.8); }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="loader-text">LOADING BTC DATA...</div>
+</div>
+
+<div id="header">
+  <div class="logo">3D BTC</div>
+  <div class="price-ticker">
+    <span class="symbol">BTC/USDT</span>
+    <span class="price" id="currentPrice">--</span>
+    <span class="change up" id="priceChange">--</span>
+  </div>
+  <div class="timeframe-selector">
+    <button data-interval="1m">1m</button>
+    <button data-interval="5m">5m</button>
+    <button data-interval="15m">15m</button>
+    <button data-interval="1h" class="active">1h</button>
+    <button data-interval="4h">4h</button>
+    <button data-interval="1d">1d</button>
+  </div>
+</div>
+
+<div id="sidebar">
+  <div class="ad-placeholder">Ad Space</div>
+</div>
+
+<div id="canvas-container"></div>
+
+<div class="controls-hint">
+  LMB: Rotate &middot; RMB: Pan &middot; Scroll: Zoom
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ─── State ───
+let currentInterval = '1h';
+let candleData = [];
+let candleMeshes = [];
+let refreshTimer = null;
+let scene, camera, renderer, composer, controls;
+let labelRenderer;
+let candleGroup, floorMesh, particleSystem;
+let lastPriceLabel = null;
+let hoverLabel = null;
+let raycaster, mouse;
+let hoveredIndex = -1;
+
+const CANDLE_SPACING = 1.2;
+const MAX_CANDLES = 100;
+const GREEN = 0x00ff88;
+const RED = 0xff0044;
+const CYAN = 0x00ffff;
+
+// ─── Interval durations (ms) ───
+const INTERVAL_MS = {
+  '1m': 60 * 1000,
+  '5m': 5 * 60 * 1000,
+  '15m': 15 * 60 * 1000,
+  '1h': 60 * 60 * 1000,
+  '4h': 4 * 60 * 60 * 1000,
+  '1d': 24 * 60 * 60 * 1000,
+};
+
+// ─── Init ───
+initScene();
+initLabelRenderer();
+initPostProcessing();
+initFloor();
+initParticles();
+initControls();
+initRaycaster();
+bindUI();
+fetchAndRender();
+animate();
+
+// ─── Three.js Scene Setup ───
+function initScene() {
+  const container = document.getElementById('canvas-container');
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0a0f, 0.008);
+
+  camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 500);
+  camera.position.set(60, 40, 60);
+  camera.lookAt(50, 10, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ReinhardToneMapping;
+  renderer.toneMappingExposure = 1.5;
+  container.appendChild(renderer.domElement);
+
+  // Lights
+  const ambient = new THREE.AmbientLight(0x1a1a3e, 0.6);
+  scene.add(ambient);
+
+  const pointLight1 = new THREE.PointLight(0x00ffff, 1.5, 150);
+  pointLight1.position.set(50, 40, 20);
+  scene.add(pointLight1);
+
+  const pointLight2 = new THREE.PointLight(0xff0088, 1.0, 150);
+  pointLight2.position.set(50, 30, -20);
+  scene.add(pointLight2);
+
+  candleGroup = new THREE.Group();
+  scene.add(candleGroup);
+
+  window.addEventListener('resize', onResize);
+}
+
+function initPostProcessing() {
+  const container = document.getElementById('canvas-container');
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+
+  const bloom = new UnrealBloomPass(
+    new THREE.Vector2(container.clientWidth, container.clientHeight),
+    1.2,   // strength
+    0.4,   // radius
+    0.2    // threshold
+  );
+  composer.addPass(bloom);
+}
+
+function initFloor() {
+  // Create grid texture via canvas
+  const size = 2048;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#080810';
+  ctx.fillRect(0, 0, size, size);
+
+  const gridStep = size / 40;
+  ctx.strokeStyle = 'rgba(0, 255, 255, 0.12)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 40; i++) {
+    const pos = i * gridStep;
+    ctx.beginPath(); ctx.moveTo(pos, 0); ctx.lineTo(pos, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, pos); ctx.lineTo(size, pos); ctx.stroke();
+  }
+
+  // Brighter center lines every 10
+  ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i <= 40; i += 10) {
+    const pos = i * gridStep;
+    ctx.beginPath(); ctx.moveTo(pos, 0); ctx.lineTo(pos, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, pos); ctx.lineTo(size, pos); ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(3, 3);
+
+  const floorGeo = new THREE.PlaneGeometry(300, 300);
+  const floorMat = new THREE.MeshStandardMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 0.9,
+    metalness: 0.8,
+    roughness: 0.3,
+  });
+
+  floorMesh = new THREE.Mesh(floorGeo, floorMat);
+  floorMesh.rotation.x = -Math.PI / 2;
+  floorMesh.position.set(60, -0.1, 0);
+  scene.add(floorMesh);
+}
+
+function initParticles() {
+  const count = 500;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = (Math.random() - 0.3) * 200;
+    positions[i * 3 + 1] = Math.random() * 80;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  const mat = new THREE.PointsMaterial({
+    color: 0x00ffff,
+    size: 0.15,
+    transparent: true,
+    opacity: 0.4,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  particleSystem = new THREE.Points(geo, mat);
+  scene.add(particleSystem);
+}
+
+function initLabelRenderer() {
+  const container = document.getElementById('canvas-container');
+  labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(container.clientWidth, container.clientHeight);
+  labelRenderer.domElement.style.position = 'absolute';
+  labelRenderer.domElement.style.top = '0';
+  labelRenderer.domElement.style.left = '0';
+  labelRenderer.domElement.style.pointerEvents = 'none';
+  container.appendChild(labelRenderer.domElement);
+}
+
+function initRaycaster() {
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  const container = document.getElementById('canvas-container');
+  container.addEventListener('mousemove', onMouseMove);
+}
+
+function onMouseMove(e) {
+  const container = document.getElementById('canvas-container');
+  const rect = container.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function formatVolume(vol, unit = '') {
+  const suffix = unit ? ' ' + unit : '';
+  if (vol >= 1e9) return (vol / 1e9).toFixed(2) + 'B' + suffix;
+  if (vol >= 1e6) return (vol / 1e6).toFixed(2) + 'M' + suffix;
+  if (vol >= 1e3) return (vol / 1e3).toFixed(1) + 'K' + suffix;
+  return vol.toFixed(0) + suffix;
+}
+
+function formatPrice(p) {
+  return '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function createLastPriceLabel(candle, mesh) {
+  if (lastPriceLabel) {
+    lastPriceLabel.parent?.remove(lastPriceLabel);
+    lastPriceLabel = null;
+  }
+
+  const div = document.createElement('div');
+  div.className = 'price-label-3d last';
+  div.innerHTML = `
+    <div class="label-price">${formatPrice(candle.close)}</div>
+    <div class="label-vol">${formatVolume(candle.volume, 'BTC')} · $${formatVolume(candle.quoteVolume, 'USDT')}</div>
+  `;
+
+  const label = new CSS2DObject(div);
+  label.position.set(0, mesh.geometry.parameters.height / 2 + 2.0, 0);
+  mesh.add(label);
+  lastPriceLabel = label;
+}
+
+function updateHoverLabel() {
+  if (!candleMeshes.length) return;
+
+  raycaster.setFromCamera(mouse, camera);
+
+  // Collect all body meshes for raycasting
+  const bodyMeshes = candleMeshes.map(m => m.body);
+  const wickMeshes = candleMeshes.map(m => m.wick);
+  const allTargets = [...bodyMeshes, ...wickMeshes];
+  const intersects = raycaster.intersectObjects(allTargets);
+
+  let newIndex = -1;
+
+  if (intersects.length > 0) {
+    const hit = intersects[0].object;
+    // Find which candle index this belongs to
+    for (let i = 0; i < candleMeshes.length; i++) {
+      if (hit === candleMeshes[i].body || hit === candleMeshes[i].wick) {
+        newIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (newIndex === hoveredIndex) return;
+  hoveredIndex = newIndex;
+
+  // Remove old hover label
+  if (hoverLabel) {
+    hoverLabel.parent?.remove(hoverLabel);
+    hoverLabel = null;
+  }
+
+  // Don't show hover tooltip on last candle (it already has the permanent label)
+  if (newIndex < 0 || newIndex === candleData.length - 1) return;
+
+  const c = candleData[newIndex];
+  const mesh = candleMeshes[newIndex].body;
+  const isGreen = c.close >= c.open;
+  const colorClass = isGreen ? 'green' : 'red';
+
+  const div = document.createElement('div');
+  div.className = 'price-label-3d hover';
+  div.innerHTML = `
+    <div class="label-row">
+      <span class="label-key">O</span><span class="label-val ${colorClass}">${formatPrice(c.open)}</span>
+      <span class="label-key">H</span><span class="label-val ${colorClass}">${formatPrice(c.high)}</span>
+    </div>
+    <div class="label-row">
+      <span class="label-key">L</span><span class="label-val ${colorClass}">${formatPrice(c.low)}</span>
+      <span class="label-key">C</span><span class="label-val ${colorClass}">${formatPrice(c.close)}</span>
+    </div>
+    <div class="label-row">
+      <span class="label-key">VOL</span><span class="label-vol">${formatVolume(c.volume, 'BTC')}</span>
+    </div>
+    <div class="label-row">
+      <span class="label-key">VOL$</span><span class="label-vol">$${formatVolume(c.quoteVolume, 'USDT')}</span>
+    </div>
+  `;
+
+  hoverLabel = new CSS2DObject(div);
+  hoverLabel.position.set(0, mesh.geometry.parameters.height / 2 + 1.5, 0);
+  mesh.add(hoverLabel);
+}
+
+function initControls() {
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.set(50, 10, 0);
+  controls.minDistance = 15;
+  controls.maxDistance = 200;
+  controls.maxPolarAngle = Math.PI / 2 - 0.05;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.3;
+}
+
+// ─── UI Binding ───
+function bindUI() {
+  document.querySelectorAll('.timeframe-selector button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelector('.timeframe-selector .active')?.classList.remove('active');
+      btn.classList.add('active');
+      currentInterval = btn.dataset.interval;
+      fetchAndRender();
+    });
+  });
+}
+
+// ─── Data Fetching ───
+function scheduleNextRefresh() {
+  clearTimeout(refreshTimer);
+  const intervalMs = INTERVAL_MS[currentInterval] || 60000;
+  const now = Date.now();
+  // Time until next candle closes + 1.5s buffer for Binance to finalize
+  const msUntilNextClose = intervalMs - (now % intervalMs) + 1500;
+  refreshTimer = setTimeout(fetchAndRender, msUntilNextClose);
+}
+
+async function fetchAndRender() {
+  clearTimeout(refreshTimer);
+
+  try {
+    const url = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${currentInterval}&limit=${MAX_CANDLES}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const raw = await resp.json();
+
+    // k[5] = volume in base asset (BTC), k[7] = quote volume (USDT)
+    candleData = raw.map(k => ({
+      time: k[0],
+      closeTime: k[6],
+      open: parseFloat(k[1]),
+      high: parseFloat(k[2]),
+      low: parseFloat(k[3]),
+      close: parseFloat(k[4]),
+      volume: parseFloat(k[5]),
+      quoteVolume: parseFloat(k[7]),
+    }));
+
+    updatePrice();
+    buildCandles();
+    document.getElementById('loading').classList.add('hidden');
+  } catch (err) {
+    console.error('Fetch error:', err);
+  }
+
+  scheduleNextRefresh();
+}
+
+function updatePrice() {
+  if (!candleData.length) return;
+  const last = candleData[candleData.length - 1];
+  const first = candleData[0];
+  const priceEl = document.getElementById('currentPrice');
+  const changeEl = document.getElementById('priceChange');
+
+  const price = last.close;
+  const pctChange = ((last.close - first.open) / first.open * 100);
+  const isUp = pctChange >= 0;
+
+  priceEl.textContent = '$' + price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  priceEl.className = 'price' + (isUp ? '' : ' down');
+
+  changeEl.textContent = (isUp ? '+' : '') + pctChange.toFixed(2) + '%';
+  changeEl.className = 'change ' + (isUp ? 'up' : 'down');
+}
+
+// ─── Build 3D Candles ───
+function buildCandles() {
+  // Clear old
+  while (candleGroup.children.length) {
+    const child = candleGroup.children[0];
+    child.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        else obj.material.dispose();
+      }
+    });
+    candleGroup.remove(child);
+  }
+  candleMeshes = [];
+
+  if (!candleData.length) return;
+
+  // Normalize
+  const prices = candleData.flatMap(c => [c.high, c.low]);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice || 1;
+
+  const volumes = candleData.map(c => c.volume);
+  const maxVol = Math.max(...volumes) || 1;
+
+  const PRICE_SCALE = 40;
+  const VOLUME_SCALE = 15;
+
+  candleData.forEach((c, i) => {
+    const isGreen = c.close >= c.open;
+    const color = isGreen ? GREEN : RED;
+    const x = i * CANDLE_SPACING;
+
+    // Body
+    const bodyH = Math.max(Math.abs(c.close - c.open) / priceRange * PRICE_SCALE, 0.15);
+    const bodyBottom = (Math.min(c.open, c.close) - minPrice) / priceRange * PRICE_SCALE;
+    const depth = Math.max((c.volume / maxVol) * VOLUME_SCALE, 0.3);
+
+    const bodyGeo = new THREE.BoxGeometry(0.7, bodyH, depth);
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.6,
+      transparent: true,
+      opacity: 0.85,
+      metalness: 0.3,
+      roughness: 0.4,
+    });
+    const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+    bodyMesh.position.set(x, bodyBottom + bodyH / 2, 0);
+    candleGroup.add(bodyMesh);
+
+    // Wick
+    const wickH = (c.high - c.low) / priceRange * PRICE_SCALE;
+    const wickBottom = (c.low - minPrice) / priceRange * PRICE_SCALE;
+    const wickGeo = new THREE.BoxGeometry(0.08, Math.max(wickH, 0.1), 0.08);
+    const wickMat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.4,
+      transparent: true,
+      opacity: 0.7,
+    });
+    const wickMesh = new THREE.Mesh(wickGeo, wickMat);
+    wickMesh.position.set(x, wickBottom + wickH / 2, 0);
+    candleGroup.add(wickMesh);
+
+    // Volume bar at base (translucent)
+    const volBarH = (c.volume / maxVol) * 5;
+    const volGeo = new THREE.BoxGeometry(0.9, Math.max(volBarH, 0.05), depth * 0.6);
+    const volMat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.3 + (c.volume / maxVol) * 0.5,
+      transparent: true,
+      opacity: 0.25,
+      metalness: 0.1,
+      roughness: 0.8,
+    });
+    const volMesh = new THREE.Mesh(volGeo, volMat);
+    volMesh.position.set(x, -volBarH / 2 - 0.5, 0);
+    candleGroup.add(volMesh);
+
+    candleMeshes.push({ body: bodyMesh, wick: wickMesh, vol: volMesh });
+  });
+
+  // Floating price label on last candle
+  if (candleMeshes.length > 0) {
+    const lastIdx = candleMeshes.length - 1;
+    createLastPriceLabel(candleData[lastIdx], candleMeshes[lastIdx].body);
+  }
+
+  // Reset hover state
+  hoveredIndex = -1;
+  if (hoverLabel) {
+    hoverLabel.parent?.remove(hoverLabel);
+    hoverLabel = null;
+  }
+
+  // Center camera target on the candle field
+  const midX = (candleData.length * CANDLE_SPACING) / 2;
+  controls.target.set(midX, PRICE_SCALE / 3, 0);
+}
+
+// ─── Resize ───
+function onResize() {
+  const container = document.getElementById('canvas-container');
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+}
+
+// ─── Animation Loop ───
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+
+  // Float particles
+  if (particleSystem) {
+    const pos = particleSystem.geometry.attributes.position.array;
+    for (let i = 1; i < pos.length; i += 3) {
+      pos[i] += Math.sin(Date.now() * 0.0005 + i) * 0.005;
+    }
+    particleSystem.geometry.attributes.position.needsUpdate = true;
+  }
+
+  // Hover detection
+  updateHoverLabel();
+
+  composer.render();
+  labelRenderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
