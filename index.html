@@ -277,6 +277,59 @@
     50% { border-color: rgba(0,255,255,0.8); }
   }
 
+  .time-label-3d {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: rgba(0, 255, 255, 0.3);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  #view-controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    display: flex;
+    gap: 6px;
+  }
+
+  #view-controls button {
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    color: rgba(0, 255, 255, 0.5);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  #view-controls button:hover {
+    background: rgba(0, 255, 255, 0.1);
+    border-color: rgba(0, 255, 255, 0.5);
+    color: #00ffff;
+  }
+
+  #view-controls button.active {
+    background: rgba(0, 255, 255, 0.15);
+    border-color: #00ffff;
+    color: #00ffff;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.15);
+  }
+
+  #view-controls button svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+  }
+
   #countdown {
     position: fixed;
     bottom: 20px;
@@ -339,6 +392,17 @@
   LMB: Rotate &middot; RMB: Pan &middot; Scroll: Zoom
 </div>
 
+<div id="view-controls">
+  <button id="btnCenter" title="Center view">
+    <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+    Center
+  </button>
+  <button id="btnLock" title="Lock view (disable rotation)">
+    <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
+    Lock
+  </button>
+</div>
+
 <div id="countdown">
   <div class="cd-label">next candle</div>
   <div class="cd-time" id="cdTime">--:--</div>
@@ -368,11 +432,14 @@ let candleMeshes = [];
 let refreshTimer = null;
 let scene, camera, renderer, composer, controls;
 let labelRenderer;
-let candleGroup, floorMesh, particleSystem;
+let candleGroup, gridGroup, floorMesh, particleSystem;
 let lastPriceLabel = null;
 let hoverLabel = null;
 let raycaster, mouse;
 let hoveredIndex = -1;
+let isLocked = false;
+let defaultCamPos = new THREE.Vector3(80, 55, 90);
+let defaultTarget = new THREE.Vector3(50, 10, 0);
 
 const CANDLE_SPACING = 1.2;
 const MAX_CANDLES = 100;
@@ -434,6 +501,9 @@ function initScene() {
 
   candleGroup = new THREE.Group();
   scene.add(candleGroup);
+
+  gridGroup = new THREE.Group();
+  scene.add(gridGroup);
 
   window.addEventListener('resize', onResize);
 }
@@ -550,6 +620,62 @@ function onMouseMove(e) {
   const rect = container.getBoundingClientRect();
   mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function formatTimeLabel(timestamp) {
+  const d = new Date(timestamp);
+  const pad = n => String(n).padStart(2, '0');
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const mins = pad(d.getMinutes());
+
+  // For daily candles, show only date
+  if (currentInterval === '1d') return `${month}/${day}`;
+  // For 4h, show date + hour
+  if (currentInterval === '4h') return `${month}/${day} ${hours}h`;
+  // Otherwise show time
+  return `${hours}:${mins}`;
+}
+
+function centerCamera() {
+  if (!candleData.length) return;
+  const midX = (candleData.length * CANDLE_SPACING) / 2;
+  const target = new THREE.Vector3(midX, 40 / 3, 0);
+  const camPos = new THREE.Vector3(midX + 25, 55, 90);
+
+  // Smooth transition
+  const startPos = camera.position.clone();
+  const startTarget = controls.target.clone();
+  const duration = 600;
+  const startTime = Date.now();
+
+  function animateCenter() {
+    const elapsed = Date.now() - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic
+
+    camera.position.lerpVectors(startPos, camPos, ease);
+    controls.target.lerpVectors(startTarget, target, ease);
+
+    if (t < 1) requestAnimationFrame(animateCenter);
+  }
+  animateCenter();
+}
+
+function toggleLock() {
+  isLocked = !isLocked;
+  controls.enableRotate = !isLocked;
+  controls.enablePan = !isLocked;
+  controls.autoRotate = !isLocked ? true : false;
+
+  const btn = document.getElementById('btnLock');
+  btn.classList.toggle('active', isLocked);
+  btn.querySelector('svg').innerHTML = isLocked
+    ? '<path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/>'
+    : '<path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/>';
+
+  if (isLocked) centerCamera();
 }
 
 function formatVolume(vol, unit = '') {
@@ -690,6 +816,9 @@ function bindUI() {
       fetchAndRender();
     });
   });
+
+  document.getElementById('btnCenter').addEventListener('click', centerCamera);
+  document.getElementById('btnLock').addEventListener('click', toggleLock);
 }
 
 // ─── Data Fetching ───
@@ -749,6 +878,117 @@ function updatePrice() {
 
   changeEl.textContent = (isUp ? '+' : '') + pctChange.toFixed(2) + '%';
   changeEl.className = 'change ' + (isUp ? 'up' : 'down');
+}
+
+// ─── Build 3D Grid ───
+function buildGrid(xMax, yMax, zMax) {
+  // Clear old grid
+  while (gridGroup.children.length) {
+    const child = gridGroup.children[0];
+    child.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    gridGroup.remove(child);
+  }
+
+  const gridMat = new THREE.LineBasicMaterial({
+    color: CYAN,
+    transparent: true,
+    opacity: 0.07,
+    depthWrite: false,
+  });
+
+  const accentMat = new THREE.LineBasicMaterial({
+    color: CYAN,
+    transparent: true,
+    opacity: 0.15,
+    depthWrite: false,
+  });
+
+  const yBottom = -6;
+  const zMin = -2;
+  const xMin = -2;
+
+  // Horizontal lines along X at each Y level (price grid) — on back wall (z=zMin)
+  const ySteps = 8;
+  const yStep = (yMax - yBottom) / ySteps;
+  for (let i = 0; i <= ySteps; i++) {
+    const y = yBottom + i * yStep;
+    const mat = (i === 0 || i === ySteps) ? accentMat : gridMat;
+
+    // Back wall line (along X)
+    const pts1 = [new THREE.Vector3(xMin, y, zMin), new THREE.Vector3(xMax, y, zMin)];
+    gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts1), mat));
+
+    // Side wall line (along Z)
+    const pts2 = [new THREE.Vector3(xMin, y, zMin), new THREE.Vector3(xMin, y, zMax)];
+    gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts2), mat));
+  }
+
+  // Vertical lines along Y at X intervals — on back wall (z=zMin)
+  const xSteps = 10;
+  const xStep = (xMax - xMin) / xSteps;
+  for (let i = 0; i <= xSteps; i++) {
+    const x = xMin + i * xStep;
+    const mat = (i === 0 || i === xSteps) ? accentMat : gridMat;
+
+    // Back wall vertical
+    const pts1 = [new THREE.Vector3(x, yBottom, zMin), new THREE.Vector3(x, yMax, zMin)];
+    gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts1), mat));
+
+    // Floor line (along Z)
+    const pts2 = [new THREE.Vector3(x, yBottom, zMin), new THREE.Vector3(x, yBottom, zMax)];
+    gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts2), mat));
+  }
+
+  // Depth lines along Z at Y intervals — on left wall (x=xMin)
+  const zSteps = 6;
+  const zStep = (zMax - zMin) / zSteps;
+  for (let i = 0; i <= zSteps; i++) {
+    const z = zMin + i * zStep;
+    const mat = (i === 0 || i === zSteps) ? accentMat : gridMat;
+
+    // Floor line (along X)
+    const pts1 = [new THREE.Vector3(xMin, yBottom, z), new THREE.Vector3(xMax, yBottom, z)];
+    gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts1), mat));
+
+    // Left wall vertical
+    const pts2 = [new THREE.Vector3(xMin, yBottom, z), new THREE.Vector3(xMin, yMax, z)];
+    gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts2), mat));
+  }
+
+  // ─── Time labels on the floor ───
+  if (candleData.length > 0) {
+    // Show ~10 labels evenly spaced
+    const labelCount = Math.min(10, candleData.length);
+    const step = Math.floor(candleData.length / labelCount);
+
+    for (let i = 0; i < candleData.length; i += step) {
+      const c = candleData[i];
+      const x = i * CANDLE_SPACING;
+
+      const div = document.createElement('div');
+      div.className = 'time-label-3d';
+      div.textContent = formatTimeLabel(c.time);
+
+      const label = new CSS2DObject(div);
+      label.position.set(x, yBottom - 1.2, zMax + 1);
+      gridGroup.add(label);
+    }
+
+    // Always show last candle time
+    const lastI = candleData.length - 1;
+    if (lastI % step !== 0) {
+      const div = document.createElement('div');
+      div.className = 'time-label-3d';
+      div.textContent = formatTimeLabel(candleData[lastI].time);
+
+      const label = new CSS2DObject(div);
+      label.position.set(lastI * CANDLE_SPACING, yBottom - 1.2, zMax + 1);
+      gridGroup.add(label);
+    }
+  }
 }
 
 // ─── Build 3D Candles ───
@@ -851,6 +1091,12 @@ function buildCandles() {
     hoverLabel.parent?.remove(hoverLabel);
     hoverLabel = null;
   }
+
+  // Build 3D grid matching data bounds
+  const xMax = (candleData.length - 1) * CANDLE_SPACING + 2;
+  const yMax = PRICE_SCALE + 5;
+  const zMax = VOLUME_SCALE / 2 + 2;
+  buildGrid(xMax, yMax, zMax);
 
   // Center camera target on the candle field
   const midX = (candleData.length * CANDLE_SPACING) / 2;
