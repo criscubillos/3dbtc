@@ -389,7 +389,7 @@
 <div id="canvas-container"></div>
 
 <div class="controls-hint">
-  LMB: Rotate &middot; RMB: Pan &middot; Scroll: Zoom
+  LMB: Rotate &middot; Space+Mouse: Pan &middot; Scroll: Zoom
 </div>
 
 <div id="view-controls">
@@ -678,7 +678,7 @@ function toggleLock() {
   isLocked = !isLocked;
   controls.enableRotate = !isLocked;
   controls.enablePan = !isLocked;
-  controls.autoRotate = !isLocked ? true : false;
+  controls.autoRotate = !isLocked;
 
   const btn = document.getElementById('btnLock');
   btn.classList.toggle('active', isLocked);
@@ -815,6 +815,30 @@ function initControls() {
   controls.maxPolarAngle = Math.PI / 2 - 0.05;
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.3;
+  controls.enableZoom = true;
+  controls.zoomSpeed = 0.8;
+  controls.maxDistance = 180;
+  controls.mouseButtons = {
+    LEFT: THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.ROTATE,
+  };
+
+  // Space + mouse drag = pan
+  let spaceDown = false;
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !spaceDown) {
+      spaceDown = true;
+      controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+      e.preventDefault();
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+      spaceDown = false;
+      controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    }
+  });
 }
 
 // ─── WebSocket real-time price ───
