@@ -276,6 +276,34 @@
     0%, 100% { border-color: rgba(0,255,255,0.3); }
     50% { border-color: rgba(0,255,255,0.8); }
   }
+
+  #countdown {
+    position: fixed;
+    bottom: 20px;
+    right: 220px;
+    z-index: 100;
+    font-family: 'Orbitron', sans-serif;
+    text-align: right;
+    pointer-events: none;
+  }
+
+  #countdown .cd-label {
+    font-size: 9px;
+    font-weight: 400;
+    color: rgba(0, 255, 255, 0.2);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  #countdown .cd-time {
+    font-size: 22px;
+    font-weight: 700;
+    color: rgba(0, 255, 255, 0.25);
+    text-shadow: 0 0 12px rgba(0, 255, 255, 0.08);
+    letter-spacing: 3px;
+  }
 </style>
 </head>
 <body>
@@ -309,6 +337,11 @@
 
 <div class="controls-hint">
   LMB: Rotate &middot; RMB: Pan &middot; Scroll: Zoom
+</div>
+
+<div id="countdown">
+  <div class="cd-label">next candle</div>
+  <div class="cd-time" id="cdTime">--:--</div>
 </div>
 
 <script type="importmap">
@@ -377,8 +410,8 @@ function initScene() {
   scene.fog = new THREE.FogExp2(0x0a0a0f, 0.008);
 
   camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 500);
-  camera.position.set(60, 40, 60);
-  camera.lookAt(50, 10, 0);
+  camera.position.set(80, 55, 90);
+  camera.lookAt(55, 10, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setSize(container.clientWidth, container.clientHeight);
@@ -615,13 +648,33 @@ function updateHoverLabel() {
   mesh.add(hoverLabel);
 }
 
+function updateCountdown() {
+  const el = document.getElementById('cdTime');
+  const intervalMs = INTERVAL_MS[currentInterval] || 60000;
+  const now = Date.now();
+  const remaining = intervalMs - (now % intervalMs);
+
+  const totalSec = Math.floor(remaining / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+
+  const pad = n => String(n).padStart(2, '0');
+
+  if (h > 0) {
+    el.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  } else {
+    el.textContent = `${pad(m)}:${pad(s)}`;
+  }
+}
+
 function initControls() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.target.set(50, 10, 0);
   controls.minDistance = 15;
-  controls.maxDistance = 200;
+  controls.maxDistance = 300;
   controls.maxPolarAngle = Math.PI / 2 - 0.05;
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.3;
@@ -832,6 +885,9 @@ function animate() {
 
   // Hover detection
   updateHoverLabel();
+
+  // Countdown
+  updateCountdown();
 
   composer.render();
   labelRenderer.render(scene, camera);
