@@ -289,7 +289,7 @@
 
   .price-axis-label {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 9px;
+    font-size: 6px;
     color: rgba(0, 255, 255, 0.35);
     pointer-events: none;
     white-space: nowrap;
@@ -404,6 +404,7 @@
   <div class="ad-placeholder">Ad Space</div>
 </div>
 
+
 <div id="canvas-container"></div>
 
 <div class="controls-hint">
@@ -499,8 +500,8 @@ function initScene() {
   scene.fog = new THREE.FogExp2(0x0a0a0f, 0.008);
 
   camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 500);
-  camera.position.set(115, 50, 120);
-  camera.lookAt(65, 10, 0);
+  camera.position.set(101.8, 28.8, 115.4);
+  camera.lookAt(70.4, 13.4, 0.2);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setSize(container.clientWidth, container.clientHeight);
@@ -827,7 +828,7 @@ function initControls() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.target.set(65, 10, 0);
+  controls.target.set(70.4, 13.4, 0.2);
   controls.minDistance = 15;
   controls.maxDistance = 300;
   controls.maxPolarAngle = Math.PI / 2 - 0.05;
@@ -849,6 +850,12 @@ function initControls() {
       spaceDown = true;
       controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
       e.preventDefault();
+    }
+    if (e.code === 'KeyC') {
+      const p = camera.position;
+      const t = controls.target;
+      const dist = p.distanceTo(t);
+      console.log(`cam: (${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}) | tgt: (${t.x.toFixed(1)}, ${t.y.toFixed(1)}, ${t.z.toFixed(1)}) | zoom/dist: ${dist.toFixed(1)}`);
     }
   });
   window.addEventListener('keyup', (e) => {
@@ -1155,7 +1162,7 @@ function buildGrid(xMax, yMax, zMax, minPrice, priceRange) {
       div.textContent = '$' + price.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
       const label = new CSS2DObject(div);
-      label.position.set(xMin - 2, y, zMin);
+      label.position.set(xMin, y, zMax + 1.5);
       gridGroup.add(label);
     }
   }
@@ -1306,6 +1313,7 @@ function animate() {
 
   // Countdown
   updateCountdown();
+
 
   composer.render();
   labelRenderer.render(scene, camera);
