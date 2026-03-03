@@ -477,8 +477,8 @@ function initScene() {
   scene.fog = new THREE.FogExp2(0x0a0a0f, 0.008);
 
   camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 500);
-  camera.position.set(80, 55, 90);
-  camera.lookAt(55, 10, 0);
+  camera.position.set(95, 50, 120);
+  camera.lookAt(65, 10, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setSize(container.clientWidth, container.clientHeight);
@@ -638,11 +638,18 @@ function formatTimeLabel(timestamp) {
   return `${hours}:${mins}`;
 }
 
+function getCenterX() {
+  if (!candleData.length) return 50;
+  const lastX = (candleData.length - 1) * CANDLE_SPACING;
+  // Bias 65% toward the last candle
+  return lastX * 0.65;
+}
+
 function centerCamera() {
   if (!candleData.length) return;
-  const midX = (candleData.length * CANDLE_SPACING) / 2;
-  const target = new THREE.Vector3(midX, 40 / 3, 0);
-  const camPos = new THREE.Vector3(midX + 25, 55, 90);
+  const cx = getCenterX();
+  const target = new THREE.Vector3(cx, 40 / 4, 0);
+  const camPos = new THREE.Vector3(cx + 30, 50, 120);
 
   // Smooth transition
   const startPos = camera.position.clone();
@@ -704,7 +711,7 @@ function createLastPriceLabel(candle, mesh) {
   `;
 
   const label = new CSS2DObject(div);
-  label.position.set(0, mesh.geometry.parameters.height / 2 + 2.0, 0);
+  label.position.set(7, mesh.geometry.parameters.height / 2 + 0.5, 0);
   mesh.add(label);
   lastPriceLabel = label;
 }
@@ -798,7 +805,7 @@ function initControls() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.target.set(50, 10, 0);
+  controls.target.set(65, 10, 0);
   controls.minDistance = 15;
   controls.maxDistance = 300;
   controls.maxPolarAngle = Math.PI / 2 - 0.05;
@@ -895,14 +902,14 @@ function buildGrid(xMax, yMax, zMax) {
   const gridMat = new THREE.LineBasicMaterial({
     color: CYAN,
     transparent: true,
-    opacity: 0.07,
+    opacity: 0.12,
     depthWrite: false,
   });
 
   const accentMat = new THREE.LineBasicMaterial({
     color: CYAN,
     transparent: true,
-    opacity: 0.15,
+    opacity: 0.25,
     depthWrite: false,
   });
 
@@ -1095,12 +1102,12 @@ function buildCandles() {
   // Build 3D grid matching data bounds
   const xMax = (candleData.length - 1) * CANDLE_SPACING + 2;
   const yMax = PRICE_SCALE + 5;
-  const zMax = VOLUME_SCALE / 2 + 2;
+  const zMax = (VOLUME_SCALE / 2 + 2) * 3;
   buildGrid(xMax, yMax, zMax);
 
-  // Center camera target on the candle field
-  const midX = (candleData.length * CANDLE_SPACING) / 2;
-  controls.target.set(midX, PRICE_SCALE / 3, 0);
+  // Center camera target biased toward last candle
+  const cx = getCenterX();
+  controls.target.set(cx, PRICE_SCALE / 3, 0);
 }
 
 // ─── Resize ───
