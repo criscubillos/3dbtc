@@ -440,6 +440,9 @@ let hoveredIndex = -1;
 let isLocked = false;
 let defaultCamPos = new THREE.Vector3(80, 55, 90);
 let defaultTarget = new THREE.Vector3(50, 10, 0);
+let ws = null;
+let livePrice = null;
+let normParams = null; // { minPrice, priceRange, maxVol, PRICE_SCALE, VOLUME_SCALE }
 
 const CANDLE_SPACING = 1.2;
 const MAX_CANDLES = 100;
@@ -466,6 +469,7 @@ initParticles();
 initControls();
 initRaycaster();
 bindUI();
+initWebSocket();
 fetchAndRender();
 animate();
 
@@ -477,7 +481,7 @@ function initScene() {
   scene.fog = new THREE.FogExp2(0x0a0a0f, 0.008);
 
   camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 500);
-  camera.position.set(95, 50, 120);
+  camera.position.set(115, 50, 120);
   camera.lookAt(65, 10, 0);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -649,7 +653,7 @@ function centerCamera() {
   if (!candleData.length) return;
   const cx = getCenterX();
   const target = new THREE.Vector3(cx, 40 / 4, 0);
-  const camPos = new THREE.Vector3(cx + 30, 50, 120);
+  const camPos = new THREE.Vector3(cx + 50, 50, 120);
 
   // Smooth transition
   const startPos = camera.position.clone();
@@ -811,6 +815,95 @@ function initControls() {
   controls.maxPolarAngle = Math.PI / 2 - 0.05;
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.3;
+}
+
+// ─── WebSocket real-time price ───
+function initWebSocket() {
+  if (ws) { ws.close(); ws = null; }
+
+  ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    livePrice = parseFloat(data.p);
+    updateLivePrice();
+  };
+
+  ws.onclose = () => {
+    // Reconnect after 3s
+    setTimeout(initWebSocket, 3000);
+  };
+
+  ws.onerror = () => { ws.close(); };
+}
+
+function updateLivePrice() {
+  if (livePrice === null || !candleData.length) return;
+
+  const priceEl = document.getElementById('currentPrice');
+  const changeEl = document.getElementById('priceChange');
+  const first = candleData[0];
+
+  const pctChange = ((livePrice - first.open) / first.open * 100);
+  const isUp = pctChange >= 0;
+
+  priceEl.textContent = '$' + livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  priceEl.className = 'price' + (isUp ? '' : ' down');
+
+  changeEl.textContent = (isUp ? '+' : '') + pctChange.toFixed(2) + '%';
+  changeEl.className = 'change ' + (isUp ? 'up' : 'down');
+
+  // Update last candle label with live price
+  if (lastPriceLabel && lastPriceLabel.element) {
+    const priceDiv = lastPriceLabel.element.querySelector('.label-price');
+    if (priceDiv) priceDiv.textContent = formatPrice(livePrice);
+  }
+
+  // Update last candle geometry
+  updateLastCandleGeometry();
+}
+
+function updateLastCandleGeometry() {
+  if (!normParams || !candleData.length || !candleMeshes.length || livePrice === null) return;
+
+  const lastIdx = candleMeshes.length - 1;
+  const { body, wick } = candleMeshes[lastIdx];
+  const c = candleData[lastIdx];
+  const { minPrice, priceRange, PRICE_SCALE } = normParams;
+
+  // Update candle data with live price
+  const prevClose = c.close;
+  c.close = livePrice;
+  if (livePrice > c.high) c.high = livePrice;
+  if (livePrice < c.low) c.low = livePrice;
+
+  const isGreen = c.close >= c.open;
+  const color = isGreen ? GREEN : RED;
+
+  // Rebuild body
+  const bodyH = Math.max(Math.abs(c.close - c.open) / priceRange * PRICE_SCALE, 0.15);
+  const bodyBottom = (Math.min(c.open, c.close) - minPrice) / priceRange * PRICE_SCALE;
+
+  body.geometry.dispose();
+  body.geometry = new THREE.BoxGeometry(0.7, bodyH, body.geometry.parameters.depth);
+  body.position.y = bodyBottom + bodyH / 2;
+  body.material.color.setHex(color);
+  body.material.emissive.setHex(color);
+
+  // Rebuild wick
+  const wickH = (c.high - c.low) / priceRange * PRICE_SCALE;
+  const wickBottom = (c.low - minPrice) / priceRange * PRICE_SCALE;
+
+  wick.geometry.dispose();
+  wick.geometry = new THREE.BoxGeometry(0.08, Math.max(wickH, 0.1), 0.08);
+  wick.position.y = wickBottom + wickH / 2;
+  wick.material.color.setHex(color);
+  wick.material.emissive.setHex(color);
+
+  // Update label position
+  if (lastPriceLabel) {
+    lastPriceLabel.position.set(7, bodyH / 2 + 0.5, 0);
+  }
 }
 
 // ─── UI Binding ───
@@ -1027,6 +1120,8 @@ function buildCandles() {
 
   const PRICE_SCALE = 40;
   const VOLUME_SCALE = 15;
+
+  normParams = { minPrice, priceRange, maxVol, PRICE_SCALE, VOLUME_SCALE };
 
   candleData.forEach((c, i) => {
     const isGreen = c.close >= c.open;
