@@ -192,6 +192,33 @@
     50% { opacity: 1; }
   }
 
+  #indicator-overlay {
+    position: fixed;
+    top: 68px;
+    left: 10px;
+    z-index: 100;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    pointer-events: none;
+  }
+
+  #indicator-overlay .ind-label {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  #indicator-overlay .ind-ema {
+    color: #ff8800;
+    text-shadow: 0 0 6px rgba(255, 136, 0, 0.4);
+  }
+
+  #indicator-overlay .ind-value {
+    color: #ff8800;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    text-shadow: 0 0 6px rgba(255, 136, 0, 0.3);
+  }
+
   .controls-hint {
     position: fixed;
     bottom: 15px;
@@ -407,6 +434,10 @@
 
 <div id="canvas-container"></div>
 
+<div id="indicator-overlay">
+  <span class="ind-ema">EMA 55</span> <span class="ind-value" id="emaCurrentVal">--</span>
+</div>
+
 <div class="controls-hint">
   LMB: Rotate &middot; Space+Mouse: Pan &middot; Scroll: Zoom
 </div>
@@ -462,9 +493,14 @@ let defaultTarget = new THREE.Vector3(50, 10, 0);
 let ws = null;
 let livePrice = null;
 let normParams = null; // { minPrice, priceRange, maxVol, PRICE_SCALE, VOLUME_SCALE }
+let emaMesh = null;
+let emaValues = [];
 
 const CANDLE_SPACING = 1.2;
-const MAX_CANDLES = 100;
+const EMA_PERIOD = 55;
+const EMA_COLOR = 0xff8800;
+const VISIBLE_CANDLES = 100;
+const FETCH_CANDLES = VISIBLE_CANDLES + EMA_PERIOD;
 const GREEN = 0x00ff88;
 const RED = 0xff0044;
 const CYAN = 0x00ffff;
@@ -720,6 +756,31 @@ function formatPrice(p) {
   return '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatDateTime(timestamp) {
+  const d = new Date(timestamp);
+  const pad = n => String(n).padStart(2, '0');
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const mins = pad(d.getMinutes());
+  if (currentInterval === '1d') return `${year}-${month}-${day}`;
+  return `${year}-${month}-${day} ${hours}:${mins}`;
+}
+
+function updateEMAOverlay(index) {
+  const el = document.getElementById('emaCurrentVal');
+  if (index >= 0 && index < emaValues.length && emaValues[index] !== undefined) {
+    el.textContent = formatPrice(emaValues[index]);
+  } else if (emaValues.length > 0) {
+    // Show last EMA value by default
+    const last = emaValues[emaValues.length - 1];
+    el.textContent = last !== undefined ? formatPrice(last) : '--';
+  } else {
+    el.textContent = '--';
+  }
+}
+
 function createLastPriceLabel(candle, mesh) {
   if (lastPriceLabel) {
     lastPriceLabel.parent?.remove(lastPriceLabel);
@@ -772,8 +833,17 @@ function updateHoverLabel() {
     hoverLabel = null;
   }
 
+  // Update EMA overlay even when not hovering a valid candle
+  if (newIndex < 0) {
+    updateEMAOverlay(-1);
+    return;
+  }
+
+  // Update EMA overlay with hovered candle's EMA
+  updateEMAOverlay(newIndex);
+
   // Don't show hover tooltip on last candle (it already has the permanent label)
-  if (newIndex < 0 || newIndex === candleData.length - 1) return;
+  if (newIndex === candleData.length - 1) return;
 
   const c = candleData[newIndex];
   const mesh = candleMeshes[newIndex].body;
@@ -783,6 +853,9 @@ function updateHoverLabel() {
   const div = document.createElement('div');
   div.className = 'price-label-3d hover';
   div.innerHTML = `
+    <div class="label-row" style="margin-bottom:4px">
+      <span class="label-key" style="color:rgba(255,255,255,0.55)">${formatDateTime(c.time)}</span>
+    </div>
     <div class="label-row">
       <span class="label-key">O</span><span class="label-val ${colorClass}">${formatPrice(c.open)}</span>
       <span class="label-key">H</span><span class="label-val ${colorClass}">${formatPrice(c.high)}</span>
@@ -953,6 +1026,17 @@ function updateLastCandleGeometry() {
   if (lastPriceLabel) {
     lastPriceLabel.position.set(7, bodyH / 2 + 0.5, 0);
   }
+
+  // Update last EMA value with live price and rebuild rope
+  if (emaValues.length >= 2) {
+    const k = 2 / (EMA_PERIOD + 1);
+    const prevEma = emaValues[emaValues.length - 2];
+    if (prevEma !== undefined) {
+      emaValues[emaValues.length - 1] = livePrice * k + prevEma * (1 - k);
+    }
+  }
+  buildEMARope();
+  if (hoveredIndex < 0) updateEMAOverlay(-1);
 }
 
 // ─── UI Binding ───
@@ -984,13 +1068,13 @@ async function fetchAndRender() {
   clearTimeout(refreshTimer);
 
   try {
-    const url = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${currentInterval}&limit=${MAX_CANDLES}`;
+    const url = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${currentInterval}&limit=${FETCH_CANDLES}`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const raw = await resp.json();
 
     // k[5] = volume in base asset (BTC), k[7] = quote volume (USDT)
-    candleData = raw.map(k => ({
+    const allCandles = raw.map(k => ({
       time: k[0],
       closeTime: k[6],
       open: parseFloat(k[1]),
@@ -1000,6 +1084,13 @@ async function fetchAndRender() {
       volume: parseFloat(k[5]),
       quoteVolume: parseFloat(k[7]),
     }));
+
+    // Calculate EMA on full dataset, then trim to visible candles
+    emaValues = calcEMA(allCandles, EMA_PERIOD);
+    // Keep only the last VISIBLE_CANDLES for display, along with their EMA values
+    const trimStart = Math.max(0, allCandles.length - VISIBLE_CANDLES);
+    candleData = allCandles.slice(trimStart);
+    emaValues = emaValues.slice(trimStart);
 
     updatePrice();
     buildCandles();
@@ -1168,6 +1259,68 @@ function buildGrid(xMax, yMax, zMax, minPrice, priceRange) {
   }
 }
 
+// ─── EMA Calculation ───
+function calcEMA(data, period) {
+  const closes = data.map(c => c.close);
+  const k = 2 / (period + 1);
+  const ema = [];
+
+  // SMA for first value
+  if (closes.length < period) return ema;
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += closes[i];
+  ema[period - 1] = sum / period;
+
+  for (let i = period; i < closes.length; i++) {
+    ema[i] = closes[i] * k + ema[i - 1] * (1 - k);
+  }
+
+  return ema;
+}
+
+// ─── Build EMA Rope ───
+function buildEMARope() {
+  // Remove old
+  if (emaMesh) {
+    emaMesh.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    candleGroup.remove(emaMesh);
+    emaMesh = null;
+  }
+
+  if (!normParams || !candleData.length || !emaValues.length) return;
+
+  const { minPrice, priceRange, PRICE_SCALE } = normParams;
+
+  // Build curve points where EMA has values
+  const points = [];
+  for (let i = 0; i < candleData.length; i++) {
+    if (emaValues[i] === undefined) continue;
+    const x = i * CANDLE_SPACING;
+    const y = (emaValues[i] - minPrice) / priceRange * PRICE_SCALE;
+    points.push(new THREE.Vector3(x, y, 0));
+  }
+
+  if (points.length < 2) return;
+
+  const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.5);
+  const tubeGeo = new THREE.TubeGeometry(curve, points.length * 4, 0.18, 8, false);
+  const tubeMat = new THREE.MeshStandardMaterial({
+    color: EMA_COLOR,
+    emissive: EMA_COLOR,
+    emissiveIntensity: 0.8,
+    metalness: 0.4,
+    roughness: 0.3,
+    transparent: true,
+    opacity: 0.9,
+  });
+
+  emaMesh = new THREE.Mesh(tubeGeo, tubeMat);
+  candleGroup.add(emaMesh);
+}
+
 // ─── Build 3D Candles ───
 function buildCandles() {
   // Clear old
@@ -1270,6 +1423,10 @@ function buildCandles() {
     hoverLabel.parent?.remove(hoverLabel);
     hoverLabel = null;
   }
+
+  // Build EMA rope
+  buildEMARope();
+  updateEMAOverlay(-1);
 
   // Build 3D grid matching data bounds
   const xMax = (candleData.length - 1) * CANDLE_SPACING + 2;
