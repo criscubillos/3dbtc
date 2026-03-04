@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D BTC Visualizer</title>
+<title>3D Crypto Visualizer</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -219,6 +219,136 @@
     text-shadow: 0 0 6px rgba(255, 136, 0, 0.3);
   }
 
+  /* ─── Asset Selector ─── */
+  .asset-selector {
+    position: relative;
+    margin-right: 16px;
+  }
+
+  .asset-selector-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(0,255,255,0.2);
+    color: #f7931a;
+    font-family: 'Share Tech Mono', monospace;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 6px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .asset-selector-btn:hover {
+    background: rgba(0,255,255,0.08);
+    border-color: rgba(0,255,255,0.45);
+    box-shadow: 0 0 12px rgba(0,255,255,0.15);
+  }
+
+  .asset-selector-btn .arrow {
+    font-size: 10px;
+    color: rgba(0,255,255,0.5);
+    transition: transform 0.2s;
+  }
+
+  .asset-selector.open .arrow {
+    transform: rotate(180deg);
+  }
+
+  .asset-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 220px;
+    background: rgba(8, 8, 18, 0.95);
+    border: 1px solid rgba(0,255,255,0.2);
+    border-radius: 8px;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(0,255,255,0.05);
+    z-index: 200;
+    overflow: hidden;
+    animation: dropIn 0.15s ease-out;
+  }
+
+  .asset-selector.open .asset-dropdown {
+    display: block;
+  }
+
+  @keyframes dropIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .asset-dropdown input {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: none;
+    border-bottom: 1px solid rgba(0,255,255,0.12);
+    color: #e0e0e0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    padding: 10px 12px;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .asset-dropdown input::placeholder {
+    color: rgba(0,255,255,0.25);
+  }
+
+  .asset-dropdown input:focus {
+    background: rgba(0,255,255,0.04);
+    border-bottom-color: rgba(0,255,255,0.3);
+  }
+
+  .asset-list {
+    max-height: 260px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,255,255,0.2) transparent;
+  }
+
+  .asset-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+  }
+
+  .asset-item:hover {
+    background: rgba(0,255,255,0.06);
+    border-left-color: rgba(0,255,255,0.4);
+  }
+
+  .asset-item.active {
+    background: rgba(0,255,255,0.1);
+    border-left-color: #00ffff;
+  }
+
+  .asset-item .pair-symbol {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #00ffff;
+    min-width: 55px;
+  }
+
+  .asset-item .pair-name {
+    font-size: 12px;
+    color: rgba(255,255,255,0.35);
+  }
+
+  .asset-item.active .pair-symbol {
+    text-shadow: 0 0 8px rgba(0,255,255,0.4);
+  }
+
   .controls-hint {
     position: fixed;
     bottom: 15px;
@@ -407,13 +537,22 @@
 <body>
 
 <div id="loading">
-  <div class="loader-text">LOADING BTC DATA...</div>
+  <div class="loader-text" id="loadingText">LOADING BTC DATA...</div>
 </div>
 
 <div id="header">
   <div class="logo">3D BTC</div>
+  <div class="asset-selector" id="assetSelector">
+    <button class="asset-selector-btn" id="assetSelectorBtn">
+      <span id="selectedSymbol">BTC/USDT</span>
+      <span class="arrow">&#9660;</span>
+    </button>
+    <div class="asset-dropdown" id="assetDropdown">
+      <input type="text" id="assetSearch" placeholder="Search pair..." autocomplete="off">
+      <div class="asset-list" id="assetList"></div>
+    </div>
+  </div>
   <div class="price-ticker">
-    <span class="symbol">BTC/USDT</span>
     <span class="price" id="currentPrice">--</span>
     <span class="change up" id="priceChange">--</span>
   </div>
@@ -475,7 +614,24 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
+// ─── Crypto Pairs ───
+const CRYPTO_PAIRS = [
+  { symbol: 'BTCUSDT', base: 'BTC', name: 'Bitcoin' },
+  { symbol: 'ETHUSDT', base: 'ETH', name: 'Ethereum' },
+  { symbol: 'SOLUSDT', base: 'SOL', name: 'Solana' },
+  { symbol: 'BNBUSDT', base: 'BNB', name: 'BNB' },
+  { symbol: 'XRPUSDT', base: 'XRP', name: 'XRP' },
+  { symbol: 'DOGEUSDT', base: 'DOGE', name: 'Dogecoin' },
+  { symbol: 'ADAUSDT', base: 'ADA', name: 'Cardano' },
+  { symbol: 'AVAXUSDT', base: 'AVAX', name: 'Avalanche' },
+  { symbol: 'DOTUSDT', base: 'DOT', name: 'Polkadot' },
+  { symbol: 'LINKUSDT', base: 'LINK', name: 'Chainlink' },
+  { symbol: 'MATICUSDT', base: 'MATIC', name: 'Polygon' },
+  { symbol: 'LTCUSDT', base: 'LTC', name: 'Litecoin' },
+];
+
 // ─── State ───
+let currentSymbol = CRYPTO_PAIRS[0];
 let currentInterval = '1h';
 let candleData = [];
 let candleMeshes = [];
@@ -791,7 +947,7 @@ function createLastPriceLabel(candle, mesh) {
   div.className = 'price-label-3d last';
   div.innerHTML = `
     <div class="label-price">${formatPrice(candle.close)}</div>
-    <div class="label-vol">${formatVolume(candle.volume, 'BTC')} · $${formatVolume(candle.quoteVolume, 'USDT')}</div>
+    <div class="label-vol">${formatVolume(candle.volume, currentSymbol.base)} · $${formatVolume(candle.quoteVolume, 'USDT')}</div>
   `;
 
   const label = new CSS2DObject(div);
@@ -865,7 +1021,7 @@ function updateHoverLabel() {
       <span class="label-key">C</span><span class="label-val ${colorClass}">${formatPrice(c.close)}</span>
     </div>
     <div class="label-row">
-      <span class="label-key">VOL</span><span class="label-vol">${formatVolume(c.volume, 'BTC')}</span>
+      <span class="label-key">VOL</span><span class="label-vol">${formatVolume(c.volume, currentSymbol.base)}</span>
     </div>
     <div class="label-row">
       <span class="label-key">VOL$</span><span class="label-vol">$${formatVolume(c.quoteVolume, 'USDT')}</span>
@@ -943,7 +1099,7 @@ function initControls() {
 function initWebSocket() {
   if (ws) { ws.close(); ws = null; }
 
-  ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+  ws = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.symbol.toLowerCase()}@trade`);
 
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
@@ -1052,6 +1208,83 @@ function bindUI() {
 
   document.getElementById('btnCenter').addEventListener('click', centerCamera);
   document.getElementById('btnLock').addEventListener('click', toggleLock);
+
+  // ─── Asset Selector ───
+  initAssetSelector();
+}
+
+function initAssetSelector() {
+  const selector = document.getElementById('assetSelector');
+  const btn = document.getElementById('assetSelectorBtn');
+  const dropdown = document.getElementById('assetDropdown');
+  const searchInput = document.getElementById('assetSearch');
+  const listEl = document.getElementById('assetList');
+
+  function renderList(filter = '') {
+    const q = filter.toLowerCase();
+    listEl.innerHTML = '';
+    CRYPTO_PAIRS.forEach(pair => {
+      if (q && !pair.base.toLowerCase().includes(q) && !pair.name.toLowerCase().includes(q) && !pair.symbol.toLowerCase().includes(q)) return;
+      const item = document.createElement('div');
+      item.className = 'asset-item' + (pair.symbol === currentSymbol.symbol ? ' active' : '');
+      item.innerHTML = `<span class="pair-symbol">${pair.base}</span><span class="pair-name">${pair.name}</span>`;
+      item.addEventListener('click', () => switchSymbol(pair));
+      listEl.appendChild(item);
+    });
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selector.classList.toggle('open');
+    if (selector.classList.contains('open')) {
+      searchInput.value = '';
+      renderList();
+      searchInput.focus();
+    }
+  });
+
+  searchInput.addEventListener('input', () => renderList(searchInput.value));
+  searchInput.addEventListener('click', (e) => e.stopPropagation());
+
+  document.addEventListener('click', () => selector.classList.remove('open'));
+  dropdown.addEventListener('click', (e) => e.stopPropagation());
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') selector.classList.remove('open');
+  });
+
+  renderList();
+}
+
+function switchSymbol(pair) {
+  if (pair.symbol === currentSymbol.symbol) {
+    document.getElementById('assetSelector').classList.remove('open');
+    return;
+  }
+  currentSymbol = pair;
+
+  // Update UI text
+  document.getElementById('selectedSymbol').textContent = `${pair.base}/USDT`;
+  document.querySelector('.logo').textContent = `3D ${pair.base}`;
+  document.title = `3D ${pair.base} Visualizer`;
+  document.getElementById('loadingText').textContent = `LOADING ${pair.base} DATA...`;
+
+  // Show loading
+  document.getElementById('loading').classList.remove('hidden');
+
+  // Close dropdown
+  document.getElementById('assetSelector').classList.remove('open');
+
+  // Reset live price
+  livePrice = null;
+  document.getElementById('currentPrice').textContent = '--';
+  document.getElementById('priceChange').textContent = '--';
+
+  // Reconnect WebSocket
+  initWebSocket();
+
+  // Fetch new data
+  fetchAndRender();
 }
 
 // ─── Data Fetching ───
@@ -1068,7 +1301,7 @@ async function fetchAndRender() {
   clearTimeout(refreshTimer);
 
   try {
-    const url = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${currentInterval}&limit=${FETCH_CANDLES}`;
+    const url = `https://api.binance.com/api/v3/klines?symbol=${currentSymbol.symbol}&interval=${currentInterval}&limit=${FETCH_CANDLES}`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const raw = await resp.json();
@@ -1233,7 +1466,7 @@ function buildGrid(xMax, yMax, zMax, minPrice, priceRange) {
   // ─── Asset name on top edge of back wall ───
   const assetDiv = document.createElement('div');
   assetDiv.className = 'asset-label-3d';
-  assetDiv.textContent = 'BTC / USDT';
+  assetDiv.textContent = `${currentSymbol.base} / USDT`;
   const assetLabel = new CSS2DObject(assetDiv);
   assetLabel.position.set((xMin + xMax) / 2, yMax + 1.5, zMin);
   gridGroup.add(assetLabel);
