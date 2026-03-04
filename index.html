@@ -135,19 +135,18 @@
     backdrop-filter: blur(10px);
   }
 
-  .ad-placeholder {
-    width: 160px;
-    height: 600px;
-    border: 1px dashed rgba(0,255,255,0.15);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(0,255,255,0.2);
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-  }
+  .stats-panel { width: 100%; padding: 0 15px; }
+  .stats-title { font-family: 'Orbitron'; font-size: 11px; color: rgba(0,255,255,0.4); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; text-align: center; border-bottom: 1px solid rgba(0,255,255,0.1); padding-bottom: 8px; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .stat-label { font-size: 10px; color: rgba(255,255,255,0.3); letter-spacing: 1px; }
+  .stat-val { font-family: 'Orbitron'; font-size: 12px; color: rgba(255,255,255,0.7); }
+  .stat-val.green { color: #00ff88; }
+  .stat-val.red { color: #ff0044; }
+  .stat-val.cyan { color: #00ffff; }
+
+  .spread-panel { width: 100%; padding: 0 15px; margin-top: 20px; }
+  .spread-bar { height: 3px; background: rgba(255,255,255,0.05); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .spread-fill { height: 100%; background: linear-gradient(90deg, #00ff88, #00ffff); border-radius: 2px; transition: width 0.3s; width: 50%; }
 
   #canvas-container {
     position: fixed;
@@ -567,7 +566,23 @@
 </div>
 
 <div id="sidebar">
-  <div class="ad-placeholder">Ad Space</div>
+  <div class="stats-panel">
+    <div class="stats-title">24H STATS</div>
+    <div class="stat-row"><span class="stat-label">HIGH</span><span class="stat-val green" id="stat24hHigh">--</span></div>
+    <div class="stat-row"><span class="stat-label">LOW</span><span class="stat-val red" id="stat24hLow">--</span></div>
+    <div class="stat-row"><span class="stat-label">CHANGE</span><span class="stat-val" id="stat24hChange">--</span></div>
+    <div class="stat-row"><span class="stat-label">VOL BASE</span><span class="stat-val cyan" id="stat24hVol">--</span></div>
+    <div class="stat-row"><span class="stat-label">VOL USDT</span><span class="stat-val cyan" id="stat24hVolQ">--</span></div>
+    <div class="stat-row"><span class="stat-label">TRADES</span><span class="stat-val" id="stat24hTrades">--</span></div>
+    <div class="stat-row"><span class="stat-label">VWAP</span><span class="stat-val" id="stat24hVwap">--</span></div>
+  </div>
+  <div class="spread-panel">
+    <div class="stats-title">SPREAD</div>
+    <div class="stat-row"><span class="stat-label">BID</span><span class="stat-val green" id="spreadBid">--</span></div>
+    <div class="stat-row"><span class="stat-label">ASK</span><span class="stat-val red" id="spreadAsk">--</span></div>
+    <div class="stat-row"><span class="stat-label">SPREAD</span><span class="stat-val cyan" id="spreadVal">--</span></div>
+    <div class="spread-bar"><div class="spread-fill" id="spreadFill"></div></div>
+  </div>
 </div>
 
 
@@ -651,6 +666,10 @@ let livePrice = null;
 let normParams = null; // { minPrice, priceRange, maxVol, PRICE_SCALE, VOLUME_SCALE }
 let emaMesh = null;
 let emaValues = [];
+let tradeParticles = [];
+let tradeParticleSystem = null;
+let tradeParticleGeo = null;
+const MAX_TRADE_PARTICLES = 300;
 
 const CANDLE_SPACING = 1.2;
 const EMA_PERIOD = 55;
@@ -677,6 +696,7 @@ initLabelRenderer();
 initPostProcessing();
 initFloor();
 initParticles();
+initTradeParticles();
 initControls();
 initRaycaster();
 bindUI();
@@ -1099,12 +1119,22 @@ function initControls() {
 function initWebSocket() {
   if (ws) { ws.close(); ws = null; }
 
-  ws = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.symbol.toLowerCase()}@trade`);
+  const sym = currentSymbol.symbol.toLowerCase();
+  ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${sym}@trade/${sym}@ticker/${sym}@bookTicker/${sym}@aggTrade`);
 
   ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    livePrice = parseFloat(data.p);
-    updateLivePrice();
+    const msg = JSON.parse(event.data);
+    const { stream, data } = msg;
+    if (stream.endsWith('@trade')) {
+      livePrice = parseFloat(data.p);
+      updateLivePrice();
+    } else if (stream.endsWith('@ticker')) {
+      updateTickerStats(data);
+    } else if (stream.endsWith('@bookTicker')) {
+      updateSpread(data);
+    } else if (stream.endsWith('@aggTrade')) {
+      spawnTradeParticles(data);
+    }
   };
 
   ws.onclose = () => {
@@ -1113,6 +1143,177 @@ function initWebSocket() {
   };
 
   ws.onerror = () => { ws.close(); };
+}
+
+// ─── 24h Ticker Stats ───
+function updateTickerStats(data) {
+  const high = parseFloat(data.h);
+  const low = parseFloat(data.l);
+  const changePct = parseFloat(data.P);
+  const volBase = parseFloat(data.v);
+  const volQuote = parseFloat(data.q);
+  const trades = parseInt(data.n);
+  const vwap = parseFloat(data.w);
+
+  document.getElementById('stat24hHigh').textContent = formatPrice(high);
+  document.getElementById('stat24hLow').textContent = formatPrice(low);
+
+  const changeEl = document.getElementById('stat24hChange');
+  changeEl.textContent = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
+  changeEl.className = 'stat-val ' + (changePct >= 0 ? 'green' : 'red');
+
+  document.getElementById('stat24hVol').textContent = formatVolume(volBase);
+  document.getElementById('stat24hVolQ').textContent = '$' + formatVolume(volQuote);
+  document.getElementById('stat24hTrades').textContent = trades.toLocaleString();
+  document.getElementById('stat24hVwap').textContent = formatPrice(vwap);
+}
+
+// ─── Spread Bid/Ask ───
+function updateSpread(data) {
+  const bid = parseFloat(data.b);
+  const ask = parseFloat(data.a);
+  const spread = ask - bid;
+  const spreadPct = (spread / ask) * 100;
+
+  document.getElementById('spreadBid').textContent = formatPrice(bid);
+  document.getElementById('spreadAsk').textContent = formatPrice(ask);
+  document.getElementById('spreadVal').textContent = spread.toFixed(2) + ' (' + spreadPct.toFixed(4) + '%)';
+
+  // Fill bar: lower spread = more fill = more liquidity
+  // Clamp spreadPct to 0-0.1% range for visualization
+  const fillPct = Math.max(0, Math.min(100, (1 - spreadPct / 0.1) * 100));
+  document.getElementById('spreadFill').style.width = fillPct + '%';
+}
+
+// ─── Trade Particles ───
+function initTradeParticles() {
+  tradeParticleGeo = new THREE.BufferGeometry();
+  const positions = new Float32Array(MAX_TRADE_PARTICLES * 3);
+  const colors = new Float32Array(MAX_TRADE_PARTICLES * 3);
+
+  // Initialize all hidden
+  for (let i = 0; i < MAX_TRADE_PARTICLES; i++) {
+    positions[i * 3 + 1] = -1000;
+  }
+
+  tradeParticleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  tradeParticleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.PointsMaterial({
+    size: 0.3,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.35,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+
+  tradeParticleSystem = new THREE.Points(tradeParticleGeo, mat);
+  tradeParticleSystem.frustumCulled = false;
+  scene.add(tradeParticleSystem);
+}
+
+function spawnTradeParticles(data) {
+  if (!normParams || !candleData.length) return;
+
+  const price = parseFloat(data.p);
+  const qty = parseFloat(data.q);
+  const isSeller = data.m; // true = seller (maker), false = buyer
+
+  const { minPrice, priceRange, PRICE_SCALE } = normParams;
+  const lastX = (candleData.length - 1) * CANDLE_SPACING;
+  const y = (price - minPrice) / priceRange * PRICE_SCALE;
+
+  // Number of particles proportional to log of volume
+  const quoteVol = price * qty;
+  const count = Math.min(15, Math.max(1, Math.floor(Math.log10(quoteVol + 1) * 2)));
+
+  // Whale detection: dynamic threshold based on recent average
+  const isWhale = quoteVol > 50000;
+  const baseSize = isWhale ? 0.5 : 0.25;
+
+  const r = isSeller ? 1.0 : 0.0;
+  const g = isSeller ? 0.0 : 1.0;
+  const b = isSeller ? 0.27 : 0.53;
+
+  for (let i = 0; i < count; i++) {
+    if (tradeParticles.length >= MAX_TRADE_PARTICLES) {
+      tradeParticles.shift(); // Remove oldest
+    }
+
+    // Random velocity on a sphere
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI;
+    const speed = 0.8 + Math.random() * 1.2;
+    const vx = Math.sin(phi) * Math.cos(theta) * speed;
+    const vy = Math.sin(phi) * Math.sin(theta) * speed * 0.7 + 0.3;
+    const vz = Math.cos(phi) * speed;
+
+    tradeParticles.push({
+      x: lastX + (Math.random() - 0.5) * 0.5,
+      y: y + (Math.random() - 0.5) * 0.5,
+      z: (Math.random() - 0.5) * 1.5,
+      vx, vy, vz,
+      r, g, b,
+      life: 1.5 + Math.random() * 1.5,
+      maxLife: 1.5 + Math.random() * 1.5,
+      size: baseSize + Math.random() * 0.2,
+    });
+  }
+}
+
+function updateTradeParticles(dt) {
+  const positions = tradeParticleGeo.attributes.position.array;
+  const colors = tradeParticleGeo.attributes.color.array;
+
+  // Update existing particles
+  for (let i = tradeParticles.length - 1; i >= 0; i--) {
+    const p = tradeParticles[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      tradeParticles.splice(i, 1);
+      continue;
+    }
+
+    // Apply velocity and gravity
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.z += p.vz * dt;
+    p.vy -= 0.3 * dt; // gravity
+
+    // Damping
+    p.vx *= 0.98;
+    p.vy *= 0.98;
+    p.vz *= 0.98;
+  }
+
+  // Write to buffers
+  for (let i = 0; i < MAX_TRADE_PARTICLES; i++) {
+    if (i < tradeParticles.length) {
+      const p = tradeParticles[i];
+      const lifeRatio = p.life / p.maxLife;
+      // Fade out in last 30% of life
+      const alpha = lifeRatio < 0.3 ? lifeRatio / 0.3 : 1.0;
+
+      positions[i * 3] = p.x;
+      positions[i * 3 + 1] = p.y;
+      positions[i * 3 + 2] = p.z;
+      colors[i * 3] = p.r * alpha;
+      colors[i * 3 + 1] = p.g * alpha;
+      colors[i * 3 + 2] = p.b * alpha;
+    } else {
+      positions[i * 3] = 0;
+      positions[i * 3 + 1] = -1000;
+      positions[i * 3 + 2] = 0;
+      colors[i * 3] = 0;
+      colors[i * 3 + 1] = 0;
+      colors[i * 3 + 2] = 0;
+    }
+  }
+
+  tradeParticleGeo.attributes.position.needsUpdate = true;
+  tradeParticleGeo.attributes.color.needsUpdate = true;
 }
 
 function updateLivePrice() {
@@ -1275,10 +1476,23 @@ function switchSymbol(pair) {
   // Close dropdown
   document.getElementById('assetSelector').classList.remove('open');
 
-  // Reset live price
+  // Reset live price and panels
   livePrice = null;
+  tradeParticles = [];
   document.getElementById('currentPrice').textContent = '--';
   document.getElementById('priceChange').textContent = '--';
+  document.getElementById('stat24hHigh').textContent = '--';
+  document.getElementById('stat24hLow').textContent = '--';
+  document.getElementById('stat24hChange').textContent = '--';
+  document.getElementById('stat24hChange').className = 'stat-val';
+  document.getElementById('stat24hVol').textContent = '--';
+  document.getElementById('stat24hVolQ').textContent = '--';
+  document.getElementById('stat24hTrades').textContent = '--';
+  document.getElementById('stat24hVwap').textContent = '--';
+  document.getElementById('spreadBid').textContent = '--';
+  document.getElementById('spreadAsk').textContent = '--';
+  document.getElementById('spreadVal').textContent = '--';
+  document.getElementById('spreadFill').style.width = '50%';
 
   // Reconnect WebSocket
   initWebSocket();
@@ -1697,6 +1911,9 @@ function animate() {
     }
     particleSystem.geometry.attributes.position.needsUpdate = true;
   }
+
+  // Trade particles
+  updateTradeParticles(1 / 60);
 
   // Hover detection
   updateHoverLabel();
