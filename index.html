@@ -612,6 +612,10 @@
     <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/><path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z"/></svg>
     Focus
   </button>
+  <button id="btnSparks" class="active" title="Toggle trade sparks">
+    <svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+    Sparks
+  </button>
 </div>
 
 <div id="countdown">
@@ -674,6 +678,7 @@ let normParams = null; // { minPrice, priceRange, maxVol, PRICE_SCALE, VOLUME_SC
 let emaMesh = null;
 let emaValues = [];
 let tradeParticles = [];
+let sparksEnabled = true;
 let tradeParticleSystem = null;
 let tradeParticleGeo = null;
 const MAX_TRADE_PARTICLES = 300;
@@ -943,6 +948,14 @@ function focusLastCandle() {
     if (t < 1) requestAnimationFrame(animateFocus);
   }
   animateFocus();
+}
+
+function toggleSparks() {
+  sparksEnabled = !sparksEnabled;
+  document.getElementById('btnSparks').classList.toggle('active', sparksEnabled);
+  if (!sparksEnabled) {
+    tradeParticles = [];
+  }
 }
 
 function toggleLock() {
@@ -1256,7 +1269,7 @@ function initTradeParticles() {
 }
 
 function spawnTradeParticles(data) {
-  if (!normParams || !candleData.length) return;
+  if (!sparksEnabled || !normParams || !candleData.length) return;
 
   const price = parseFloat(data.p);
   const qty = parseFloat(data.q);
@@ -1451,6 +1464,7 @@ function bindUI() {
   document.getElementById('btnCenter').addEventListener('click', centerCamera);
   document.getElementById('btnLock').addEventListener('click', toggleLock);
   document.getElementById('btnFocus').addEventListener('click', focusLastCandle);
+  document.getElementById('btnSparks').addEventListener('click', toggleSparks);
 
   // ─── Asset Selector ───
   initAssetSelector();
