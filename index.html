@@ -1200,10 +1200,10 @@ function initTradeParticles() {
   tradeParticleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const mat = new THREE.PointsMaterial({
-    size: 25,
+    size: 1.5,
     vertexColors: true,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.85,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     sizeAttenuation: true,
@@ -1219,7 +1219,6 @@ function spawnTradeParticles(data) {
 
   const price = parseFloat(data.p);
   const qty = parseFloat(data.q);
-  if (tradeParticles.length < 3) console.log('TRADE PARTICLE spawn:', { price, qty, isSeller: data.m, particleCount: tradeParticles.length });
   const isSeller = data.m; // true = seller (maker), false = buyer
 
   const { minPrice, priceRange, PRICE_SCALE } = normParams;
