@@ -1210,6 +1210,7 @@ function initTradeParticles() {
   });
 
   tradeParticleSystem = new THREE.Points(tradeParticleGeo, mat);
+  tradeParticleSystem.frustumCulled = false;
   scene.add(tradeParticleSystem);
 }
 
