@@ -1190,7 +1190,6 @@ function initTradeParticles() {
   tradeParticleGeo = new THREE.BufferGeometry();
   const positions = new Float32Array(MAX_TRADE_PARTICLES * 3);
   const colors = new Float32Array(MAX_TRADE_PARTICLES * 3);
-  const sizes = new Float32Array(MAX_TRADE_PARTICLES);
 
   // Initialize all hidden
   for (let i = 0; i < MAX_TRADE_PARTICLES; i++) {
@@ -1199,33 +1198,15 @@ function initTradeParticles() {
 
   tradeParticleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   tradeParticleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  tradeParticleGeo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
 
-  const mat = new THREE.ShaderMaterial({
-    uniforms: {},
-    vertexShader: `
-      attribute float aSize;
-      varying vec3 vColor;
-      void main() {
-        vColor = color;
-        vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = aSize * (200.0 / -mvPos.z);
-        gl_Position = projectionMatrix * mvPos;
-      }
-    `,
-    fragmentShader: `
-      varying vec3 vColor;
-      void main() {
-        float d = length(gl_PointCoord - vec2(0.5));
-        if (d > 0.5) discard;
-        float glow = 1.0 - smoothstep(0.0, 0.5, d);
-        gl_FragColor = vec4(vColor * glow, glow * 0.9);
-      }
-    `,
+  const mat = new THREE.PointsMaterial({
+    size: 25,
     vertexColors: true,
     transparent: true,
+    opacity: 0.9,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    sizeAttenuation: true,
   });
 
   tradeParticleSystem = new THREE.Points(tradeParticleGeo, mat);
@@ -1237,6 +1218,7 @@ function spawnTradeParticles(data) {
 
   const price = parseFloat(data.p);
   const qty = parseFloat(data.q);
+  if (tradeParticles.length < 3) console.log('TRADE PARTICLE spawn:', { price, qty, isSeller: data.m, particleCount: tradeParticles.length });
   const isSeller = data.m; // true = seller (maker), false = buyer
 
   const { minPrice, priceRange, PRICE_SCALE } = normParams;
@@ -1284,7 +1266,6 @@ function spawnTradeParticles(data) {
 function updateTradeParticles(dt) {
   const positions = tradeParticleGeo.attributes.position.array;
   const colors = tradeParticleGeo.attributes.color.array;
-  const sizes = tradeParticleGeo.attributes.aSize.array;
 
   // Update existing particles
   for (let i = tradeParticles.length - 1; i >= 0; i--) {
@@ -1321,21 +1302,18 @@ function updateTradeParticles(dt) {
       colors[i * 3] = p.r * alpha;
       colors[i * 3 + 1] = p.g * alpha;
       colors[i * 3 + 2] = p.b * alpha;
-      sizes[i] = p.size * alpha;
     } else {
       positions[i * 3] = 0;
-      positions[i * 3 + 1] = -1000; // hide offscreen
+      positions[i * 3 + 1] = -1000;
       positions[i * 3 + 2] = 0;
       colors[i * 3] = 0;
       colors[i * 3 + 1] = 0;
       colors[i * 3 + 2] = 0;
-      sizes[i] = 0;
     }
   }
 
   tradeParticleGeo.attributes.position.needsUpdate = true;
   tradeParticleGeo.attributes.color.needsUpdate = true;
-  tradeParticleGeo.attributes.aSize.needsUpdate = true;
 }
 
 function updateLivePrice() {
