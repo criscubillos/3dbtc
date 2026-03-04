@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Crypto Visualizer</title>
+<title>3D-Crypto</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -540,7 +540,7 @@
 </div>
 
 <div id="header">
-  <div class="logo">3D BTC</div>
+  <div class="logo">3D-Crypto</div>
   <div class="asset-selector" id="assetSelector">
     <button class="asset-selector-btn" id="assetSelectorBtn">
       <span id="selectedSymbol">BTC/USDT</span>
@@ -1507,8 +1507,8 @@ function switchSymbol(pair) {
 
   // Update UI text
   document.getElementById('selectedSymbol').textContent = `${pair.base}/USDT`;
-  document.querySelector('.logo').textContent = `3D ${pair.base}`;
-  document.title = `3D ${pair.base} Visualizer`;
+  document.querySelector('.logo').textContent = '3D-Crypto';
+  document.title = `3D-Crypto · ${pair.base}`;
   document.getElementById('loadingText').textContent = `LOADING ${pair.base} DATA...`;
 
   // Show loading
