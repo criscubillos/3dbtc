@@ -1200,10 +1200,10 @@ function initTradeParticles() {
   tradeParticleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const mat = new THREE.PointsMaterial({
-    size: 1.5,
+    size: 0.3,
     vertexColors: true,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.35,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     sizeAttenuation: true,
@@ -1231,7 +1231,7 @@ function spawnTradeParticles(data) {
 
   // Whale detection: dynamic threshold based on recent average
   const isWhale = quoteVol > 50000;
-  const baseSize = isWhale ? 4.0 : 1.8;
+  const baseSize = isWhale ? 0.5 : 0.25;
 
   const r = isSeller ? 1.0 : 0.0;
   const g = isSeller ? 0.0 : 1.0;
@@ -1245,9 +1245,9 @@ function spawnTradeParticles(data) {
     // Random velocity on a sphere
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.random() * Math.PI;
-    const speed = 0.3 + Math.random() * 0.5;
+    const speed = 0.8 + Math.random() * 1.2;
     const vx = Math.sin(phi) * Math.cos(theta) * speed;
-    const vy = Math.sin(phi) * Math.sin(theta) * speed * 0.7 + 0.15; // slight upward bias
+    const vy = Math.sin(phi) * Math.sin(theta) * speed * 0.7 + 0.3;
     const vz = Math.cos(phi) * speed;
 
     tradeParticles.push({
