@@ -49,6 +49,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${orbitron.variable} ${shareTechMono.variable}`}>
       <head>
         <link rel="canonical" href="https://crypto3d.aperture.cl" />
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5723735470440666"
+          crossOrigin="anonymous"
+        ></script>
       </head>
       <body>{children}</body>
     </html>
