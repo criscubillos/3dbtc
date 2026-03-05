@@ -611,6 +611,21 @@ body {
     left: 8px;
   }
 
+  .price-label-3d.last {
+    padding: 3px 6px;
+    border-radius: 3px;
+    border-color: rgba(0, 255, 255, 0.4);
+  }
+
+  .price-label-3d.last .label-price {
+    font-size: 10px;
+    margin-bottom: 0;
+  }
+
+  .price-label-3d.last .label-vol {
+    display: none;
+  }
+
   .controls-hint {
     display: none;
   }
