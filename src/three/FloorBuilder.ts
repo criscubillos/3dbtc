@@ -43,7 +43,8 @@ export function initFloor(scene: THREE.Scene): THREE.Mesh {
 
   const floorMesh = new THREE.Mesh(floorGeo, floorMat);
   floorMesh.rotation.x = -Math.PI / 2;
-  floorMesh.position.set(60, -0.1, 0);
+  // Keep floor plane 1 unit below the grid base (y = -6) for clear separation.
+  floorMesh.position.set(60, -7, 0);
   scene.add(floorMesh);
 
   return floorMesh;
