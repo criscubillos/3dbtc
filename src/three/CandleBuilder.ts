@@ -85,7 +85,8 @@ export function buildCandles(
       roughness: 0.8,
     });
     const volMesh = new THREE.Mesh(volGeo, volMat);
-    volMesh.position.set(x, -volBarH / 2 - 0.5, 0);
+    // Anchor reflection bars 0.7 units below the bottom grid line (y = -6).
+    volMesh.position.set(x, -6.7 - volBarH / 2, 0);
     candleGroup.add(volMesh);
 
     meshes.push({ body: bodyMesh, wick: wickMesh, vol: volMesh });
