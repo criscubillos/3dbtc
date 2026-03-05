@@ -59,6 +59,10 @@ export class SceneManager {
   private keydownHandler: (e: KeyboardEvent) => void;
   private keyupHandler: (e: KeyboardEvent) => void;
   private resizeHandler: () => void;
+  private autoRotateFrontAzimuth = 0;
+  private autoRotatePausedByBackView = false;
+  private readonly autoRotateStopSweep = Math.PI * 0.48;
+  private readonly autoRotateResumeSweep = Math.PI * 0.14;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -133,6 +137,8 @@ export class SceneManager {
       MIDDLE: THREE.MOUSE.DOLLY,
       RIGHT: THREE.MOUSE.ROTATE,
     };
+    this.controls.update();
+    this.autoRotateFrontAzimuth = this.controls.getAzimuthalAngle();
 
     // Keyboard
     this.keydownHandler = (e: KeyboardEvent) => {
@@ -359,6 +365,7 @@ export class SceneManager {
       if (this.disposed) return;
       this.animationId = requestAnimationFrame(animate);
       this.controls.update();
+      this.syncAutoRotateFrontGuard();
 
       updateParticles(this.particleSystem);
       this.tradeParticles.update(1 / 60);
@@ -380,6 +387,33 @@ export class SceneManager {
       this.labelRenderer.render(this.scene, this.camera);
     };
     animate();
+  }
+
+  private syncAutoRotateFrontGuard(): void {
+    if (this.isLocked) {
+      this.autoRotatePausedByBackView = false;
+      return;
+    }
+
+    const currentAzimuth = this.controls.getAzimuthalAngle();
+    const delta = Math.atan2(
+      Math.sin(currentAzimuth - this.autoRotateFrontAzimuth),
+      Math.cos(currentAzimuth - this.autoRotateFrontAzimuth)
+    );
+    const absDelta = Math.abs(delta);
+
+    if (this.controls.autoRotate) {
+      if (absDelta >= this.autoRotateStopSweep) {
+        this.controls.autoRotate = false;
+        this.autoRotatePausedByBackView = true;
+      }
+      return;
+    }
+
+    if (this.autoRotatePausedByBackView && absDelta <= this.autoRotateResumeSweep) {
+      this.controls.autoRotate = true;
+      this.autoRotatePausedByBackView = false;
+    }
   }
 
   private onResize(): void {
