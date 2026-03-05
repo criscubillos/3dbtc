@@ -139,6 +139,7 @@ body {
   align-items: center;
   padding-top: 30px;
   backdrop-filter: blur(10px);
+  transition: transform 0.24s ease, opacity 0.24s ease;
 }
 
 .stats-panel { width: 100%; padding: 0 15px; }
@@ -153,6 +154,13 @@ body {
 .spread-panel { width: 100%; padding: 0 15px; margin-top: 20px; }
 .spread-bar { height: 3px; background: rgba(255,255,255,0.05); border-radius: 2px; margin-top: 8px; overflow: hidden; }
 .spread-fill { height: 100%; background: linear-gradient(90deg, #00ff88, #00ffff); border-radius: 2px; transition: width 0.3s; width: 50%; }
+.sidebar-donate { margin-top: auto; padding: 15px; text-align: center; }
+
+#sidebar-toggle,
+#sidebar-backdrop,
+#donate-footer {
+  display: none;
+}
 
 #canvas-container {
   position: fixed;
@@ -539,4 +547,198 @@ body {
   color: rgba(0, 255, 255, 0.25);
   text-shadow: 0 0 12px rgba(0, 255, 255, 0.08);
   letter-spacing: 3px;
+}
+
+@media (max-width: 900px) {
+  #header {
+    height: 48px;
+    padding: 0 8px;
+  }
+
+  .home-icon {
+    margin-right: 8px;
+  }
+
+  .home-icon img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .logo {
+    font-size: 16px;
+    margin-right: 8px;
+  }
+
+  .price-ticker {
+    gap: 8px;
+    margin-right: 0;
+  }
+
+  .price-ticker .price {
+    font-size: 18px;
+  }
+
+  .price-ticker .change {
+    display: none;
+  }
+
+  .asset-selector {
+    margin-right: 8px;
+  }
+
+  .asset-selector-btn {
+    min-height: 34px;
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  .asset-dropdown {
+    min-width: 190px;
+    max-width: 74vw;
+  }
+
+  .timeframe-selector {
+    display: none;
+  }
+
+  #canvas-container {
+    top: 48px;
+    right: 0;
+  }
+
+  #indicator-overlay {
+    top: 54px;
+    left: 8px;
+  }
+
+  .controls-hint {
+    display: none;
+  }
+
+  #countdown {
+    display: none;
+  }
+
+  #view-controls {
+    width: calc(100vw - 16px);
+    bottom: 10px;
+    gap: 4px;
+    justify-content: center;
+  }
+
+  #view-controls button {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+
+  #view-controls button svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  #sidebar-toggle {
+    display: flex;
+    position: fixed;
+    top: 56px;
+    right: 10px;
+    z-index: 112;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 255, 255, 0.35);
+    background: rgba(5, 8, 18, 0.86);
+    color: rgba(0, 255, 255, 0.9);
+    font-family: var(--font-share-tech-mono), monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    backdrop-filter: blur(8px);
+    cursor: pointer;
+  }
+
+  #sidebar-toggle.active {
+    background: rgba(0, 255, 255, 0.18);
+    color: #0d1624;
+  }
+
+  #sidebar-backdrop {
+    display: block;
+    position: fixed;
+    top: 48px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 109;
+  }
+
+  #sidebar-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #sidebar {
+    top: 48px;
+    width: min(82vw, 280px);
+    z-index: 110;
+    transform: translateX(103%);
+    padding-top: 18px;
+  }
+
+  #sidebar.open {
+    transform: translateX(0);
+  }
+
+  .stats-panel,
+  .spread-panel {
+    padding: 0 12px;
+  }
+
+  .stats-title {
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+  .sidebar-donate {
+    display: none;
+  }
+
+  #donate-footer {
+    display: block;
+    position: fixed;
+    left: 10px;
+    bottom: 58px;
+    z-index: 111;
+  }
+
+  #donate-footer img {
+    width: 112px;
+    height: 31px;
+    border-radius: 6px;
+    opacity: 0.92;
+  }
+}
+
+@media (max-width: 540px) {
+  .logo {
+    display: none;
+  }
+
+  #header {
+    padding: 0 6px;
+  }
+
+  .asset-selector-btn {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .price-ticker .price {
+    font-size: 16px;
+  }
 }

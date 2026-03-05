@@ -6,7 +6,12 @@ import { CANDLE_SPACING, PRICE_SCALE } from '@/constants';
 export function getCenterX(candleData: CandleData[]): number {
   if (!candleData.length) return 50;
   const lastX = (candleData.length - 1) * CANDLE_SPACING;
-  return lastX * 0.65;
+  // On mobile we bias the target to the right so the latest price/candles
+  // are visible on first render.
+  const centerFactor = typeof window !== 'undefined' && window.innerWidth <= 900
+    ? 0.86
+    : 0.65;
+  return lastX * centerFactor;
 }
 
 export function centerCamera(
