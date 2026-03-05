@@ -1,13 +1,42 @@
 export function formatPrice(p: number): string {
-  return '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (!Number.isFinite(p)) return '--';
+  const abs = Math.abs(p);
+
+  if (abs === 0) {
+    return '$0.00';
+  }
+
+  if (abs >= 1) {
+    return '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  const maxFractionDigits = Math.min(8, Math.max(2, Math.ceil(-Math.log10(abs)) + 2));
+  return '$' + p.toLocaleString('en-US', {
+    minimumFractionDigits: maxFractionDigits,
+    maximumFractionDigits: maxFractionDigits,
+  });
 }
 
 export function formatVolume(vol: number, unit = ''): string {
+  if (!Number.isFinite(vol)) return '--';
+
   const suffix = unit ? ' ' + unit : '';
   if (vol >= 1e9) return (vol / 1e9).toFixed(2) + 'B' + suffix;
   if (vol >= 1e6) return (vol / 1e6).toFixed(2) + 'M' + suffix;
   if (vol >= 1e3) return (vol / 1e3).toFixed(1) + 'K' + suffix;
-  return vol.toFixed(0) + suffix;
+  if (vol >= 1) {
+    return vol.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + suffix;
+  }
+
+  if (vol === 0) {
+    return '0' + suffix;
+  }
+
+  const maxFractionDigits = Math.min(8, Math.max(2, Math.ceil(-Math.log10(Math.abs(vol))) + 2));
+  return vol.toLocaleString('en-US', {
+    minimumFractionDigits: maxFractionDigits,
+    maximumFractionDigits: maxFractionDigits,
+  }) + suffix;
 }
 
 export function formatTimeLabel(timestamp: number, interval: string): string {

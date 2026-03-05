@@ -1,13 +1,14 @@
 'use client';
 
 import { useCryptoStore } from '@/stores/useCryptoStore';
+import { formatPrice } from '@/utils/formatters';
 
 export default function PriceTicker() {
   const livePrice = useCryptoStore((s) => s.livePrice);
   const priceChange = useCryptoStore((s) => s.priceChange);
 
   const priceText = livePrice !== null
-    ? '$' + livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ? formatPrice(livePrice)
     : '--';
 
   const isUp = (priceChange ?? 0) >= 0;

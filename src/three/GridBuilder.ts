@@ -2,7 +2,54 @@ import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import type { CandleData } from '@/types';
 import { CYAN, CANDLE_SPACING } from '@/constants';
-import { formatTimeLabel } from '@/utils/formatters';
+import { formatPrice, formatTimeLabel } from '@/utils/formatters';
+
+function createWallPriceLabel(text: string): THREE.Mesh {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    const fallbackGeo = new THREE.PlaneGeometry(1, 0.25);
+    const fallbackMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+    return new THREE.Mesh(fallbackGeo, fallbackMat);
+  }
+
+  // HiDPI-friendly canvas text to keep labels crisp on zoom.
+  const fontSize = 54;
+  const paddingX = 22;
+  const paddingY = 14;
+  ctx.font = `700 ${fontSize}px monospace`;
+  const metrics = ctx.measureText(text);
+  const textW = Math.ceil(metrics.width);
+  const textH = Math.ceil(fontSize);
+
+  canvas.width = textW + paddingX * 2;
+  canvas.height = textH + paddingY * 2;
+
+  ctx.font = `700 ${fontSize}px monospace`;
+  ctx.textBaseline = 'top';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(0, 255, 255, 0.86)';
+  ctx.shadowColor = 'rgba(0, 255, 255, 0.30)';
+  ctx.shadowBlur = 10;
+  ctx.fillText(text, paddingX, paddingY);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+
+  const h = 1.92;
+  const w = h * (canvas.width / canvas.height);
+  const geo = new THREE.PlaneGeometry(w, h);
+  const mat = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+
+  return new THREE.Mesh(geo, mat);
+}
 
 export function buildGrid(
   gridGroup: THREE.Group,
@@ -21,8 +68,19 @@ export function buildGrid(
       if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose();
       if ((obj as THREE.Mesh).material) {
         const mat = (obj as THREE.Mesh).material;
-        if (Array.isArray(mat)) mat.forEach(m => m.dispose());
-        else (mat as THREE.Material).dispose();
+        if (Array.isArray(mat)) {
+          mat.forEach((m) => {
+            if ('map' in m && (m as THREE.MeshBasicMaterial).map) {
+              (m as THREE.MeshBasicMaterial).map?.dispose();
+            }
+            m.dispose();
+          });
+        } else {
+          if ('map' in mat && (mat as THREE.MeshBasicMaterial).map) {
+            (mat as THREE.MeshBasicMaterial).map?.dispose();
+          }
+          (mat as THREE.Material).dispose();
+        }
       }
     });
     gridGroup.remove(child);
@@ -123,17 +181,19 @@ export function buildGrid(
   // Price axis labels
   if (minPrice !== undefined && priceRange) {
     const PRICE_SCALE = yMax - 5;
+    // Paint labels on the left wall plane (YZ), facing candles (+X).
+    const priceLabelX = xMin + 0.02;
+    const priceLabelZ = zMin + (zMax - zMin) * 0.28;
+
     for (let i = 0; i <= ySteps; i++) {
       const y = yBottom + i * yStep;
       const normalizedY = y / PRICE_SCALE;
       const price = minPrice + normalizedY * priceRange;
       if (price <= 0) continue;
 
-      const div = document.createElement('div');
-      div.className = 'price-axis-label';
-      div.textContent = '$' + price.toLocaleString('en-US', { maximumFractionDigits: 0 });
-      const label = new CSS2DObject(div);
-      label.position.set(xMin, y, zMax + 1.5);
+      const label = createWallPriceLabel(formatPrice(price));
+      label.position.set(priceLabelX, y, priceLabelZ);
+      label.rotation.y = Math.PI / 2;
       gridGroup.add(label);
     }
   }
