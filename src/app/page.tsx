@@ -9,6 +9,7 @@ import ControlsHint from '@/components/ControlsHint';
 import ViewControls from '@/components/ViewControls';
 import Countdown from '@/components/Countdown';
 import DonateFooter from '@/components/DonateFooter';
+import LiquidationsFeed from '@/components/LiquidationsFeed';
 
 const ThreeCanvas = dynamic(() => import('@/components/ThreeCanvas'), { ssr: false });
 
@@ -23,6 +24,7 @@ export default function Home() {
       <ControlsHint />
       <ViewControls />
       <Countdown />
+      <LiquidationsFeed />
       <DonateFooter />
     </>
   );

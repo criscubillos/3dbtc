@@ -16,6 +16,7 @@ import { initFloor } from './FloorBuilder';
 import { initParticles, updateParticles } from './ParticleSystem';
 import { TradeParticlesManager } from './TradeParticles';
 import { LabelsManager } from './Labels';
+import { Liquidations3DManager } from './Liquidations3D';
 import { calcEMA, buildEMARope, updateLiveEMA } from './EMABuilder';
 import { buildGrid } from './GridBuilder';
 import { buildCandles, updateLastCandleGeometry } from './CandleBuilder';
@@ -37,6 +38,7 @@ export class SceneManager {
   private particleSystem: THREE.Points;
   private tradeParticles: TradeParticlesManager;
   private labels: LabelsManager;
+  private liquidationFeed: Liquidations3DManager;
   private raycasterMgr: RaycasterManager;
 
   private candleData: CandleData[] = [];
@@ -53,6 +55,7 @@ export class SceneManager {
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private animationId: number | null = null;
   private ws: BinanceWebSocket | null = null;
+  private lastLiquidationPruneAt = 0;
   private spaceDown = false;
   private disposed = false;
 
@@ -83,16 +86,16 @@ export class SceneManager {
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ReinhardToneMapping;
-    this.renderer.toneMappingExposure = 1.5;
+    this.renderer.toneMappingExposure = 1.08;
     container.appendChild(this.renderer.domElement);
 
     // Lights
-    const ambient = new THREE.AmbientLight(0x1a1a3e, 0.6);
+    const ambient = new THREE.AmbientLight(0x1a1a3e, 0.42);
     this.scene.add(ambient);
-    const pointLight1 = new THREE.PointLight(0x00ffff, 1.5, 150);
+    const pointLight1 = new THREE.PointLight(0x00ffff, 0.85, 150);
     pointLight1.position.set(50, 40, 20);
     this.scene.add(pointLight1);
-    const pointLight2 = new THREE.PointLight(0xff0088, 1.0, 150);
+    const pointLight2 = new THREE.PointLight(0xff0088, 0.55, 150);
     pointLight2.position.set(50, 30, -20);
     this.scene.add(pointLight2);
 
@@ -107,7 +110,7 @@ export class SceneManager {
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(container.clientWidth, container.clientHeight),
-      1.2, 0.4, 0.2
+      0.36, 0.22, 0.48
     );
     this.composer.addPass(bloom);
 
@@ -166,6 +169,7 @@ export class SceneManager {
     this.particleSystem = initParticles(this.scene);
     this.tradeParticles = new TradeParticlesManager(this.scene);
     this.labels = new LabelsManager();
+    this.liquidationFeed = new Liquidations3DManager(this.scene);
     this.raycasterMgr = new RaycasterManager(container);
   }
 
@@ -240,6 +244,7 @@ export class SceneManager {
       normParams.minPrice, normParams.priceRange,
       store.symbol.base, store.interval
     );
+    this.liquidationFeed.setLayout(xMax, yMax, zMax);
 
     // Center camera
     const cx = getCenterX(this.candleData);
@@ -356,6 +361,22 @@ export class SceneManager {
       onAggTrade: (data) => {
         this.spawnTradeParticles(data);
       },
+      onLiquidation: (data) => {
+        const order = data.o as Record<string, string> | undefined;
+        if (!order) return;
+
+        const quantity = parseFloat(order.q ?? '0');
+        const price = parseFloat(order.ap ?? order.p ?? '0');
+        if (!Number.isFinite(quantity) || !Number.isFinite(price) || quantity <= 0 || price <= 0) return;
+
+        useCryptoStore.getState().addLiquidation({
+          symbol: order.s ?? symbol,
+          side: order.S === 'SELL' ? 'LONG' : 'SHORT',
+          price,
+          quantity,
+          valueUsd: quantity * price,
+        });
+      },
     };
     this.ws = new BinanceWebSocket(symbol, callbacks);
   }
@@ -367,11 +388,18 @@ export class SceneManager {
       this.controls.update();
       this.syncAutoRotateFrontGuard();
 
+      const store = useCryptoStore.getState();
+      const now = performance.now();
+      if (now - this.lastLiquidationPruneAt > 500) {
+        store.pruneLiquidations();
+        this.lastLiquidationPruneAt = now;
+      }
+      this.liquidationFeed.sync(store.liquidations, store.showLiquidations, this.camera);
+
       updateParticles(this.particleSystem);
       this.tradeParticles.update(1 / 60);
 
       // Hover
-      const store = useCryptoStore.getState();
       this.raycasterMgr.update(
         this.camera,
         this.candleMeshes,
@@ -439,6 +467,7 @@ export class SceneManager {
     this.raycasterMgr.dispose();
     this.controls.dispose();
     this.tradeParticles.dispose();
+    this.liquidationFeed.dispose();
     this.composer.dispose();
 
     // Release WebGL context on hot reloads to avoid renderer creation failures.
