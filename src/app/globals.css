@@ -549,6 +549,42 @@ body {
   letter-spacing: 3px;
 }
 
+#liquidations-panel {
+  position: fixed;
+  top: 82px;
+  right: 216px;
+  width: auto;
+  z-index: 102;
+  pointer-events: none;
+}
+
+#liquidations-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  margin-left: auto;
+  margin-bottom: 0;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 255, 255, 0.25);
+  background: rgba(3, 7, 16, 0.84);
+  color: rgba(0, 255, 255, 0.72);
+  font-family: var(--font-share-tech-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  pointer-events: auto;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+#liquidations-toggle.active {
+  border-color: rgba(0, 255, 255, 0.42);
+  color: #b5ffff;
+  box-shadow: 0 0 18px rgba(0, 255, 255, 0.08);
+}
+
 @media (max-width: 900px) {
   #header {
     height: 48px;
@@ -632,6 +668,19 @@ body {
 
   #countdown {
     display: none;
+  }
+
+  #liquidations-panel {
+    top: 92px;
+    right: 10px;
+    z-index: 108;
+  }
+
+  #liquidations-toggle {
+    min-height: 30px;
+    margin-bottom: 8px;
+    padding: 0 10px;
+    font-size: 10px;
   }
 
   #view-controls {

@@ -3,6 +3,7 @@ export interface WsCallbacks {
   onTicker: (data: Record<string, string>) => void;
   onBookTicker: (data: Record<string, string>) => void;
   onAggTrade: (data: Record<string, string | boolean>) => void;
+  onLiquidation: (data: Record<string, unknown>) => void;
 }
 
 export class BinanceWebSocket {
@@ -23,7 +24,7 @@ export class BinanceWebSocket {
 
     const sym = this.symbol;
     this.ws = new WebSocket(
-      `wss://stream.binance.com:9443/stream?streams=${sym}@trade/${sym}@ticker/${sym}@bookTicker/${sym}@aggTrade`
+      `wss://stream.binance.com:9443/stream?streams=${sym}@trade/${sym}@ticker/${sym}@bookTicker/${sym}@aggTrade/${sym}@forceOrder`
     );
 
     this.ws.onmessage = (event) => {
@@ -37,6 +38,8 @@ export class BinanceWebSocket {
         this.callbacks.onBookTicker(data);
       } else if (stream.endsWith('@aggTrade')) {
         this.callbacks.onAggTrade(data);
+      } else if (stream.endsWith('@forceOrder')) {
+        this.callbacks.onLiquidation(data);
       }
     };
 

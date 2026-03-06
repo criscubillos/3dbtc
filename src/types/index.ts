@@ -40,6 +40,18 @@ export interface SpreadData {
   spreadPct: number;
 }
 
+export interface LiquidationEntry {
+  id: string;
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  price: number;
+  quantity: number;
+  valueUsd: number;
+  color: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
 export interface CandleMeshSet {
   body: THREE.Mesh;
   wick: THREE.Mesh;
