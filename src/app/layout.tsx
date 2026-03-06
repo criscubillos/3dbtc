@@ -1,10 +1,8 @@
 import type { Metadata } from 'next';
-import { GoogleAnalytics } from '@next/third-parties/google';
 import { Orbitron, Share_Tech_Mono } from 'next/font/google';
 import './globals.css';
 
 const siteUrl = 'https://crypto3d.aperture.cl';
-const googleAnalyticsId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID || 'AW-17991893351';
 
 const orbitron = Orbitron({
   subsets: ['latin'],
@@ -77,14 +75,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           async
+          src="https://www.googletagmanager.com/gtag/js?id=AW-17991893351"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+
+gtag('config', 'AW-17991893351');`,
+          }}
+        />
+        <script
+          async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5723735470440666"
           crossOrigin="anonymous"
         ></script>
       </head>
-      <body>
-        {children}
-        <GoogleAnalytics gaId={googleAnalyticsId} />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
