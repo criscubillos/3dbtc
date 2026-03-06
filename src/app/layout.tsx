@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { GoogleTagManager } from '@next/third-parties/google';
 import { Orbitron, Share_Tech_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -72,27 +73,25 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${orbitron.variable} ${shareTechMono.variable}`}>
+      <GoogleTagManager gtmId="GTM-TD8TWQ6F" />
       <head>
-        <script
-          async
-          src="https://www.googletagmanager.com/gtag/js?id=AW-17991893351"
-        />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag('js', new Date());
-
-gtag('config', 'AW-17991893351');`,
-          }}
-        />
         <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5723735470440666"
           crossOrigin="anonymous"
         ></script>
       </head>
-      <body>{children}</body>
+      <body>
+        <noscript>
+          <iframe
+            src="https://www.googletagmanager.com/ns.html?id=GTM-TD8TWQ6F"
+            height="0"
+            width="0"
+            style={{ display: 'none', visibility: 'hidden' }}
+          />
+        </noscript>
+        {children}
+      </body>
     </html>
   );
 }
