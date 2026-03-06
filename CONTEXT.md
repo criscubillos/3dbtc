@@ -258,6 +258,20 @@ wickH = (high - low) / priceRange * 40
 wickY = (low - minPrice) / priceRange * 40 + wickH/2
 
 // Volume bar (below ground)
+
+---
+
+## Tracking Decision
+
+- Google Tag Manager in this project must use the classic manual snippet in `src/app/layout.tsx`.
+- Required placement:
+  - inline GTM script in `<head>`
+  - GTM `noscript` iframe immediately after opening `<body>`
+- Reason:
+  - the `@next/third-parties/google` `GoogleTagManager` integration was tested and did not expose the classic GTM snippet in the initial HTML source the way Google expected for detection.
+  - the classic manual snippet was verified locally and was the version that Google detected correctly.
+- Operational rule:
+  - do not replace the manual GTM snippet with `@next/third-parties/google` unless detection is revalidated against the live deployed site.
 volBarH = (volume / maxVol) * 5
 volY = -volBarH/2 - 0.5
 ```
