@@ -97,7 +97,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             style={{ display: 'none', visibility: 'hidden' }}
           />
         </noscript>
-        <div id="container-7b024735bdce821b1e2e9287ecbd7919"></div>
         {children}
       </body>
     </html>
