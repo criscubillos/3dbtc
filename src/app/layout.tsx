@@ -83,7 +83,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           }}
         />
         <script
-          src="https://pl28913488.effectivegatecpm.com/f5/1f/bc/f51fbcf7986107841d350fbbf52c13c8.js"
+          async
+          data-cfasync="false"
+          src="https://pl28913435.effectivegatecpm.com/7b024735bdce821b1e2e9287ecbd7919/invoke.js"
         ></script>
       </head>
       <body>

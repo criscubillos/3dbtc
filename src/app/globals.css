@@ -154,6 +154,29 @@ body {
 .spread-panel { width: 100%; padding: 0 15px; margin-top: 20px; }
 .spread-bar { height: 3px; background: rgba(255,255,255,0.05); border-radius: 2px; margin-top: 8px; overflow: hidden; }
 .spread-fill { height: 100%; background: linear-gradient(90deg, #00ff88, #00ffff); border-radius: 2px; transition: width 0.3s; width: 50%; }
+.sidebar-ad-slot {
+  width: 100%;
+  flex: 1;
+  min-height: 220px;
+  padding: 18px 10px 10px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+#container-7b024735bdce821b1e2e9287ecbd7919 {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+#container-7b024735bdce821b1e2e9287ecbd7919 iframe,
+#container-7b024735bdce821b1e2e9287ecbd7919 > div {
+  max-width: 100%;
+}
+
 .sidebar-donate { margin-top: auto; padding: 15px; text-align: center; }
 
 #sidebar-toggle,

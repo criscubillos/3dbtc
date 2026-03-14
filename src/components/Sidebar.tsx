@@ -97,6 +97,10 @@ export default function Sidebar() {
           </div>
         </div>
 
+        <div className="sidebar-ad-slot" aria-label="Sponsored content">
+          <div id="container-7b024735bdce821b1e2e9287ecbd7919"></div>
+        </div>
+
         <div className="sidebar-donate">
           <a href="https://www.buymeacoffee.com/aperture" target="_blank" rel="noopener noreferrer">
             <img
